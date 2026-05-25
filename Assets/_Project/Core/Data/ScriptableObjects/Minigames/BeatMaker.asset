@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2df9dfa8355b1ab4f83e7eedd70d129f, type: 3}
+  m_Name: BeatMaker
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.MinigameDefinition
+  minigameType: 2
+  displayName: Dj Session!
+  description: "Crea tu propio ritmo en un secuenciador de 4 pistas y d\xE9jate llevar
+    por la m\xFAsica."
+  logo: {fileID: 0}
+  previewImage: {fileID: 0}
+  tags: 0400000005000000
+  estimatedTimeSeconds: 180
+  isAvailable: 1

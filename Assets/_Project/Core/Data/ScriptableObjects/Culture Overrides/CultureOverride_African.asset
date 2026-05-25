@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6746fff4b6e7fe048bcaa01683e70fd3, type: 3}
+  m_Name: CultureOverride_African
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.CultureColorOverride
+  cultureType: 0
+  emotionOverrides:
+  - emotionType: 0
+    primaryColor: {r: 0.54509807, g: 0.4117647, b: 0.078431375, a: 1}
+    backgroundColor: {r: 0.101960786, g: 0.07058824, b: 0, a: 1}
+  - emotionType: 1
+    primaryColor: {r: 0.47843137, g: 0.41960785, b: 0.2901961, a: 1}
+    backgroundColor: {r: 0.09411765, g: 0.078431375, b: 0.0627451, a: 1}
+  - emotionType: 2
+    primaryColor: {r: 0.70980394, g: 0.2901961, b: 0.11764706, a: 1}
+    backgroundColor: {r: 0.13333334, g: 0.050980393, b: 0.019607844, a: 1}
+  - emotionType: 3
+    primaryColor: {r: 0.2901961, g: 0.41960785, b: 0.5411765, a: 1}
+    backgroundColor: {r: 0.047058824, g: 0.08235294, b: 0.1254902, a: 1}
+  - emotionType: 4
+    primaryColor: {r: 0.78431374, g: 0.52156866, b: 0.23529412, a: 1}
+    backgroundColor: {r: 0.13333334, g: 0.08235294, b: 0, a: 1}
+  - emotionType: 5
+    primaryColor: {r: 0.3529412, g: 0.54901963, b: 0.23529412, a: 1}
+    backgroundColor: {r: 0.0627451, g: 0.10980392, b: 0.03137255, a: 1}
+  - emotionType: 6
+    primaryColor: {r: 0.9098039, g: 0.627451, b: 0.1254902, a: 1}
+    backgroundColor: {r: 0.14901961, g: 0.101960786, b: 0, a: 1}
+  - emotionType: 7
+    primaryColor: {r: 0.9098039, g: 0.36078432, b: 0, a: 1}
+    backgroundColor: {r: 0.14901961, g: 0.0627451, b: 0, a: 1}

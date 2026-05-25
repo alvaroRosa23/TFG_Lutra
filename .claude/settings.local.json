@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -L \"https://raw.githubusercontent.com/praeclarum/sqlite-net/master/src/SQLiteAsync.cs\" -o \"/mnt/c/Users/photo/Desktop/Personal Computer/Unity/TFG/Assets/Plugins/SQLite/SQLiteAsync.cs\")"
+    ]
+  }
+}

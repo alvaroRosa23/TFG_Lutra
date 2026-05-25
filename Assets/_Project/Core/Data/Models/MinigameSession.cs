@@ -1,0 +1,48 @@
+using System;
+using SQLite;
+
+namespace Lutra.Core.Data.Models
+{
+    /// <summary>
+    /// Registro de una sesión de minijuego completada por el usuario.
+    /// Persiste en SQLite a través de DataRepository.
+    /// </summary>
+    [Table("MinigameSessions")]
+    public class MinigameSession
+    {
+        /// <summary>Clave primaria autoincremental.</summary>
+        [PrimaryKey, AutoIncrement]
+        public int Id { get; set; }
+
+        /// <summary>Momento de inicio de la sesión (UTC).</summary>
+        public DateTime StartTime { get; set; }
+
+        /// <summary>Duración total de la sesión en segundos.</summary>
+        public float DurationSeconds { get; set; }
+
+        /// <summary>Identificador del minijuego jugado.</summary>
+        public MinigameType MinigameId { get; set; }
+
+        /// <summary>Emoción reportada antes de iniciar el minijuego.</summary>
+        public EmotionType EmotionBefore { get; set; }
+
+        /// <summary>Emoción reportada al terminar el minijuego.</summary>
+        public EmotionType EmotionAfter { get; set; }
+
+        /// <summary>
+        /// Puntuación de relajación calculada al finalizar (0.0 - 1.0).
+        /// Cada minijuego define su propia heurística.
+        /// </summary>
+        public float RelaxationScore { get; set; }
+
+        // ── Constructor sin parámetros requerido por sqlite-net-pcl ──
+        public MinigameSession() { }
+
+        public MinigameSession(MinigameType minigame, EmotionType before)
+        {
+            StartTime    = DateTime.Now;
+            MinigameId   = minigame;
+            EmotionBefore = before;
+        }
+    }
+}

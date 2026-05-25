@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4c05f6360c03da489b24cc4c6f1adf8, type: 3}
+  m_Name: EmotionTheme_Joy
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.EmotionTheme
+  emotionType: 7
+  displayName: 
+  primaryColor: {r: 0.9607843, g: 0.78431374, b: 0.25882354, a: 1}
+  secondaryColor: {r: 1, g: 1, b: 1, a: 1}
+  backgroundColor: {r: 1, g: 1, b: 1, a: 1}
+  mascotExpression: {fileID: 6039470171329511163, guid: 49fd95a3c5d63844c9963180d3c66036, type: 3}
+  mascotAnimatorOverride: {fileID: 0}
+  ambientLoop: {fileID: 0}
+  ambientVolume: 0.3
+  ambientParticlesPrefab: {fileID: 0}
+  transitionDuration: 0.8
