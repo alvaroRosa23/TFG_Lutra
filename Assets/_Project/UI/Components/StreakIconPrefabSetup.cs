@@ -19,9 +19,9 @@ namespace Lutra.UI.Components
         [SerializeField] private TextMeshProUGUI _checkmark;
 
         [Header("Colores")]
-        [SerializeField] private Color _completedColor = new Color(0.306f, 0.788f, 0.627f, 1f); // #4EC9A0 verde
+        [SerializeField] private Color _completedColor = new Color(0.5921569f, 0.7098039f, 0.5372549f, 1f); // #97B589 verde
         [SerializeField] private Color _todayColor     = new Color(0.910f, 0.451f, 0.228f, 1f); // #E8733A naranja
-        [SerializeField] private Color _emptyColor     = new Color(0.533f, 0.529f, 0.502f, 1f); // #888780 gris
+        [SerializeField] private Color _emptyColor     = new Color(0.9137256f, 0.8980393f, 0.8588236f, 1f); // #E9E5DB gris
         [SerializeField] private Color _missedColor    = new Color(0.886f, 0.294f, 0.290f, 1f); // #E24B4A rojo
 
         // ── API pública ────────────────────────────────────────────────

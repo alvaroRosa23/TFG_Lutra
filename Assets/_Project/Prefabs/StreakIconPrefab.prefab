@@ -189,10 +189,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: LutraCore::Lutra.UI.Components.StreakIconPrefabSetup
   _circleImage: {fileID: 8816509572156683388}
   _checkmark: {fileID: 7616009940520160201}
-  _completedColor: {r: 0.306, g: 0.788, b: 0.627, a: 1}
+  _completedColor: {r: 0.5921569, g: 0.7098039, b: 0.5372549, a: 1}
   _todayColor: {r: 0.91, g: 0.451, b: 0.228, a: 1}
-  _emptyColor: {r: 0.533, g: 0.529, b: 0.502, a: 1}
-  _missedColor: {r: 0.886, g: 0.294, b: 0.29, a: 1}
+  _emptyColor: {r: 0.9137256, g: 0.8980393, b: 0.8588236, a: 1}
+  _missedColor: {r: 0.9150943, g: 0.76118946, b: 0.46186364, a: 1}
 --- !u!1 &7467910473350210658
 GameObject:
   m_ObjectHideFlags: 0
@@ -251,7 +251,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.20677422, g: 0.745283, b: 0, a: 1}
+  m_Color: {r: 0.5921569, g: 0.7098039, b: 0.5372549, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

@@ -1,16 +1,28 @@
 fileFormatVersion: 2
-guid: e1c4c0b4d985ad744bb485bb9fa1a46a
+guid: 84555373b59a17d44950516508e60c79
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3217654218323516896
-    second: lower_body_otter_0
+      213: 3145973316401054442
+    second: streak_bar_0
   - first:
-      213: -2997580774426032737
-    second: lower_body_otter_1
+      213: -5894291501771153136
+    second: streak_bar_1
   - first:
-      213: 5792724233153003312
-    second: lower_body_otter_2
+      213: -962201558134041377
+    second: streak_bar_2
+  - first:
+      213: 2150701349035615080
+    second: streak_bar_3
+  - first:
+      213: -4275417039942883358
+    second: streak_bar_4
+  - first:
+      213: -1112364756884734453
+    second: streak_bar_5
+  - first:
+      213: -4986611026155895967
+    second: streak_bar_6
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -52,7 +64,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 2
+  spriteMode: 1
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -106,13 +118,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: lower_body_otter_0
+      name: streak_bar_0
       rect:
         serializedVersion: 2
-        x: 330
-        y: 872
-        width: 435
-        height: 477
+        x: 0
+        y: 0
+        width: 80
+        height: 78
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -121,20 +133,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 0222aca49889853d0800000000000000
-      internalID: -3217654218323516896
+      spriteID: ae241fc201eb8ab20800000000000000
+      internalID: 3145973316401054442
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: lower_body_otter_1
+      name: streak_bar_1
       rect:
         serializedVersion: 2
-        x: 680
-        y: 717
-        width: 60
-        height: 21
+        x: 112
+        y: 0
+        width: 80
+        height: 78
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -143,20 +155,20 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: f95cbc2ea247666d0800000000000000
-      internalID: -2997580774426032737
+      spriteID: 011a352cb15433ea0800000000000000
+      internalID: -5894291501771153136
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: lower_body_otter_2
+      name: streak_bar_2
       rect:
         serializedVersion: 2
-        x: 515
-        y: 538
-        width: 119
-        height: 115
+        x: 224
+        y: 0
+        width: 81
+        height: 78
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -165,8 +177,96 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 03fb1e6bff3e36050800000000000000
-      internalID: 5792724233153003312
+      spriteID: fd4d715e7c295a2f0800000000000000
+      internalID: -962201558134041377
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: streak_bar_3
+      rect:
+        serializedVersion: 2
+        x: 337
+        y: 0
+        width: 81
+        height: 78
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 863a8376b73d8dd10800000000000000
+      internalID: 2150701349035615080
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: streak_bar_4
+      rect:
+        serializedVersion: 2
+        x: 449
+        y: 0
+        width: 81
+        height: 78
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2e76d83badaaaa4c0800000000000000
+      internalID: -4275417039942883358
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: streak_bar_5
+      rect:
+        serializedVersion: 2
+        x: 562
+        y: 0
+        width: 81
+        height: 78
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b0eb83da5261090f0800000000000000
+      internalID: -1112364756884734453
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: streak_bar_6
+      rect:
+        serializedVersion: 2
+        x: 675
+        y: 0
+        width: 79
+        height: 78
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1638ee021bffbcab0800000000000000
+      internalID: -4986611026155895967
       vertices: []
       indices: 
       edges: []
@@ -185,9 +285,13 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      lower_body_otter_0: -3217654218323516896
-      lower_body_otter_1: -2997580774426032737
-      lower_body_otter_2: 5792724233153003312
+      streak_bar_0: 3145973316401054442
+      streak_bar_1: -5894291501771153136
+      streak_bar_2: -962201558134041377
+      streak_bar_3: 2150701349035615080
+      streak_bar_4: -4275417039942883358
+      streak_bar_5: -1112364756884734453
+      streak_bar_6: -4986611026155895967
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

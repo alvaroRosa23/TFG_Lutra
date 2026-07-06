@@ -17,7 +17,7 @@ namespace Lutra.UI.Components
 
         [Header("Colores")]
         [SerializeField] private Color _activeColor   = new Color(1f, 0.85f, 0f, 1f);   // amarillo
-        [SerializeField] private Color _inactiveColor = new Color(0.4f, 0.4f, 0.4f, 1f); // gris
+        [SerializeField] private Color _inactiveColor = new Color(0.8980393f, 0.8980393f, 0.8588236f, 1f); // gris
 
         private static readonly Color TodayColor = new Color(1f, 0.55f, 0.1f, 1f); // naranja
 
