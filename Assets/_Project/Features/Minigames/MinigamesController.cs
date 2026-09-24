@@ -131,12 +131,7 @@ namespace Lutra.Features.Minigames
             }
         }
 
-        private void _onPlayRequested(MinigameType type)
-        {
-            // Pendiente de implementar la escena del minijuego
-            Debug.Log($"[MinigamesController] Minijuego {type} no implementado aún");
-            // _ = StartMinigame(type);
-        }
+        private void _onPlayRequested(MinigameType type) => _ = StartMinigame(type);
 
         private void _onFilterDropdownRequested()
         {
@@ -247,15 +242,10 @@ namespace Lutra.Features.Minigames
 
         private async Task<string> _getRecordText(MinigameType type)
         {
-            var sessions = await DataRepo.GetSessionsForMinigame(type);
-            if (sessions == null || sessions.Count == 0)
-                return "Sin récord";
-
-            float best = 0f;
-            foreach (var s in sessions)
-                if (s.RelaxationScore > best) best = s.RelaxationScore;
-
-            return $"Mejor: {(int)(best * 100)}%";
+            float? best = await DataRepo.GetBestRelaxationScore(type);
+            return best.HasValue
+                ? $"Mejor puntuación: {MinigameOutcome.ToDisplayScore(best.Value)}"
+                : "Sin récord";
         }
     }
 }

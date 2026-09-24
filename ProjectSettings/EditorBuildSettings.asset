@@ -11,5 +11,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Main.unity
     guid: b7dc30b2981a93548ab35033d428538c
+  - enabled: 1
+    path: Assets/Scenes/Beatmaker.unity
+    guid: 55d13fa834036bf438e7a45863d2e743
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}

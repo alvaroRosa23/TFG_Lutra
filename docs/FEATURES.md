@@ -150,7 +150,7 @@ Lógica de filtrado, búsqueda y recomendaciones.
 - `OpenMinigames()` — suscribe eventos de la vista, carga definiciones, calcula recomendadas por emoción actual
 - `_onSearchChanged(string)` / `_onFilterChanged(MinigameTag?)` — filtran `_allMinigames` y llaman a `_view.UpdateAllSection`
 - `_onFilterDropdownRequested()` — obtiene tags únicos con `_getDistinctTags()` y llama a `_view.ShowFilterDropdown`
-- `_getRecordText(MinigameType)` — recupera la mejor sesión de BD y formatea como texto
+- `_getRecordText(MinigameType)` — `DataRepository.GetBestRelaxationScore` → "Mejor puntuación: N" (0-100) o "Sin récord"; se consulta cada vez que se abre el panel de detalle
 
 ### MinigamesView
 UI del selector; campos serializados:
@@ -168,9 +168,10 @@ Card individual; campos: `_logoImage`, `_nameLabel`, `_timeNumberLabel`, `_timeU
 
 ### PostMinigameScreen
 Pantalla post-minijuego; `AppState.MinigameActive`.
-- Escucha `EventBus.OnMinigameCompleted(MinigameSession)` y construye un `MinigameResult`
-- Muestra duración formateada y mensaje según `EmotionAfter` (diccionario de mensajes con alternativas aleatorias)
-- Botones de emoción post-sesión → `OnPostEmotionSelected: Action<EmotionType>`
+- En `OnScreenFocused` lee `MinigameLoader.LastOutcome` (`MinigameOutcome`: sesión ya guardada, nombre, récord previo, `IsNewRecord`, monedas). No depende de `EventBus.OnMinigameCompleted`, que se emite cuando la pantalla aún está desactivada.
+- Campos: `_titleLabel`, `_scoreLabel` ("Puntuación: N", 0-100), `_recordLabel`, `_newRecordBadge` (GameObject), `_durationLabel` (`ChartsCalculator.FormatDuration`), `_coinsLabel`, `_messageLabel` (mensaje según `EmotionBefore`)
+- Botones de emoción (`_emotionButtons` + `_emotionTypes`, mismo índice) → guarda `EmotionAfter` con `DataRepository.UpdateMinigameSession` y resalta el seleccionado
+- `_playAgainButton` → `TransitionTo(Minigames)` + `MinigameLoader.LoadMinigame` (con la emoción elegida o la previa); `_backButton` → `TransitionTo(Minigames)`
 
 ---
 
@@ -214,4 +215,4 @@ Interfaz: `Type`, `IsPlaying`, `Initialize(EmotionType)`, `StartGame/PauseGame/R
 Clase base abstracta; implementa `IMinigame`; campos protegidos `_emotionBefore`, `_startTime`, `_isPlaying`, `_result`; método protegido `BuildResult(float relaxationScore, bool completed, Dictionary<string,float> metrics = null)`.
 
 ### MinigameLoader
-Carga escena aditiva → busca `IMinigame` → `Initialize` → `StartGame` → `OnGameCompleted` → guarda `MinigameSession` en BD → `EmitMinigameCompleted` → descarga escena → `TransitionTo(MinigameActive)` (PostMinigameScreen).
+Carga escena aditiva → busca `IMinigame` → `Initialize` → `StartGame` → `OnGameCompleted` → consulta récord previo → guarda `MinigameSession` en BD → `EmitMinigameCompleted` → monedas → `LastOutcome` → descarga escena → `TransitionTo(MinigameActive)` (PostMinigameScreen).

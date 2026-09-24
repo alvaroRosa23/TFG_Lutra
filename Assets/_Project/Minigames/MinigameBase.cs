@@ -120,13 +120,38 @@ namespace Lutra.Minigames
             };
         }
 
+        // ── Cierre de la aplicación ────────────────────────────────────
+
+        // Al cerrar la app (o salir de Play Mode) los servicios se destruyen en orden arbitrario:
+        // intentar guardar la partida desde OnDestroy fallaría porque DataRepository ya no está.
+        private static bool _applicationQuitting;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void _resetQuittingFlag()
+        {
+            // Necesario si "Enter Play Mode Options" desactiva el domain reload
+            _applicationQuitting = false;
+            Application.quitting -= _onApplicationQuitting;
+            Application.quitting += _onApplicationQuitting;
+        }
+
+        private static void _onApplicationQuitting() => _applicationQuitting = true;
+
         // ── Unity lifecycle ────────────────────────────────────────────
 
         protected virtual void OnDestroy()
         {
+            if (!_isPlaying) return;
+
+            // La app se está cerrando: la partida se descarta sin persistir
+            if (_applicationQuitting)
+            {
+                _isPlaying = false;
+                return;
+            }
+
             // Forzar cierre si la escena se descarga con la partida en curso
-            if (_isPlaying)
-                EndGame(completedNaturally: false);
+            EndGame(completedNaturally: false);
         }
     }
 }

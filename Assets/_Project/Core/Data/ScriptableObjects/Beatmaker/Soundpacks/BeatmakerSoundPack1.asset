@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 421bad5c871fbcb478112120caf05c07, type: 3}
+  m_Name: BeatmakerSoundPack1
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.BeatmakerSoundPack
+  packName: Reggaeton
+  bpm: 80
+  kickClips:
+  - {fileID: 8300000, guid: aed48d0129eff3e4ab214c529c37df37, type: 3}
+  - {fileID: 8300000, guid: 224d640f1f44c364a8181b481b225385, type: 3}
+  hatClips:
+  - {fileID: 8300000, guid: 6f42688ee6809894785e030f67b6dca2, type: 3}
+  - {fileID: 8300000, guid: 5bd9bb8380b6cb5479947caf1c568ed7, type: 3}
+  clapClips:
+  - {fileID: 8300000, guid: 7759f7ae293a3864d8080741ef0cdb28, type: 3}
+  - {fileID: 8300000, guid: f46ffe36f69b23e4b9797e091dd58e58, type: 3}
+  snareClips:
+  - {fileID: 8300000, guid: 1ed3c07a3cb0b2e4dbe7f55c98f2b6f1, type: 3}
+  - {fileID: 8300000, guid: f9de973f94bb1384bb728786beec0f11, type: 3}
+  loopClips:
+  - {fileID: 8300000, guid: 67fc1b3685731144bbbfa261855e7a1a, type: 3}
+  - {fileID: 8300000, guid: 5a35e982476f017409634991b626c381, type: 3}
+  loopNames:
+  - Dark
+  - Strings

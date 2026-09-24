@@ -31,6 +31,9 @@ namespace Lutra.Minigames
         // Referencia guardada para poder desuscribir el handler
         private Action<MinigameResult> _gameCompletedHandler;
 
+        /// <summary>Última partida terminada y guardada; la lee PostMinigameScreen al recibir el foco.</summary>
+        public MinigameOutcome LastOutcome { get; private set; }
+
         // ── Unity lifecycle ────────────────────────────────────────────
 
         private void Awake() { }
@@ -85,6 +88,15 @@ namespace Lutra.Minigames
             EventBus.EmitMinigameStarted(type);
         }
 
+        /// <summary>Definición (nombre, logo, tiempo...) de un minijuego; null si no está configurada.</summary>
+        public MinigameDefinition GetDefinition(MinigameType type)
+        {
+            if (_minigameDefinitions == null) return null;
+            foreach (var def in _minigameDefinitions)
+                if (def != null && def.minigameType == type) return def;
+            return null;
+        }
+
         /// <summary>
         /// Descarga la escena del minijuego activo y limpia el estado interno.
         /// </summary>
@@ -111,21 +123,27 @@ namespace Lutra.Minigames
 
         /// <summary>
         /// Callback disparado por el minijuego al terminar.
-        /// Persiste la sesión, emite eventos y navega a la pantalla post-juego.
+        /// Persiste la sesión, comprueba el récord, emite eventos y navega a la pantalla post-juego.
         /// </summary>
         private async Task _onMinigameFinished(MinigameResult result)
         {
             try
             {
+                var repo = ServiceLocator.Get<DataRepository>();
+
+                // Récord previo: se consulta ANTES de guardar para poder comparar
+                float? previousBest = await repo.GetBestRelaxationScore(result.Type);
+
                 // Construir y persistir sesión
                 var session = new MinigameSession(result.Type, result.EmotionBefore)
                 {
+                    StartTime       = result.StartTime,
                     DurationSeconds = result.DurationSeconds,
                     EmotionAfter    = result.EmotionAfter,
-                    RelaxationScore = result.RelaxationScore
+                    RelaxationScore = result.RelaxationScore,
+                    Metrics         = result.Metrics
                 };
 
-                var repo = ServiceLocator.Get<DataRepository>();
                 await repo.SaveMinigameSession(session);
 
                 EventBus.EmitMinigameCompleted(session);
@@ -139,6 +157,17 @@ namespace Lutra.Minigames
                     EventBus.EmitCoinsChanged(profile?.Coins ?? 0);
                     Debug.Log($"[MinigameLoader] Monedas por minijuego ({result.Type}): +{coinReward}");
                 }
+
+                int newScore = MinigameOutcome.ToDisplayScore(result.RelaxationScore);
+                LastOutcome = new MinigameOutcome
+                {
+                    Session           = session,
+                    DisplayName       = GetDefinition(result.Type)?.displayName ?? result.Type.ToString(),
+                    PreviousBestScore = previousBest,
+                    IsNewRecord       = newScore > 0 &&
+                                        (!previousBest.HasValue || newScore > MinigameOutcome.ToDisplayScore(previousBest.Value)),
+                    CoinsEarned       = coinReward
+                };
 
                 // Descargar escena del minijuego
                 await UnloadCurrentMinigame();
@@ -154,11 +183,8 @@ namespace Lutra.Minigames
 
         private int _calculateMinigameCoinReward(MinigameType type)
         {
-            if (_minigameDefinitions == null) return 3;
-            foreach (var def in _minigameDefinitions)
-                if (def != null && def.minigameType == type)
-                    return Mathf.Max(3, def.estimatedTimeSeconds / 30);
-            return 3;
+            var def = GetDefinition(type);
+            return def != null ? Mathf.Max(3, def.estimatedTimeSeconds / 30) : 3;
         }
 
         private MinigameSceneData _findSceneData(MinigameType type)

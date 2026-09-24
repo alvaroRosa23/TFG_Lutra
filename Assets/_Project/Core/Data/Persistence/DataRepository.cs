@@ -281,6 +281,65 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
+        /// <summary>Actualiza una sesión ya guardada (p.ej. la emoción post-juego).</summary>
+        public async Task UpdateMinigameSession(MinigameSession session)
+        {
+            try
+            {
+                await _db.UpdateAsync(session);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] UpdateMinigameSession: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>Mejor RelaxationScore (0-1) histórico de un minijuego; null si nunca se ha jugado.</summary>
+        public async Task<float?> GetBestRelaxationScore(MinigameType type)
+        {
+            try
+            {
+                var sessions = await GetSessionsForMinigame(type);
+                if (sessions == null || sessions.Count == 0) return null;
+
+                float best = 0f;
+                foreach (var session in sessions)
+                    if (session.RelaxationScore > best) best = session.RelaxationScore;
+
+                return best;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetBestRelaxationScore: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Mejor valor histórico de una métrica (Metrics/MetricsJson) para un minijuego.</summary>
+        public async Task<float> GetBestMetric(MinigameType type, string metricKey)
+        {
+            try
+            {
+                var sessions = await GetSessionsForMinigame(type);
+                float best = 0f;
+
+                foreach (var session in sessions)
+                {
+                    var metrics = session.Metrics;
+                    if (metrics != null && metrics.TryGetValue(metricKey, out float value) && value > best)
+                        best = value;
+                }
+
+                return best;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetBestMetric: {ex.Message}");
+                return 0f;
+            }
+        }
+
         // ══════════════════════════════════════════════════════════════
         // PERFIL
         // ══════════════════════════════════════════════════════════════

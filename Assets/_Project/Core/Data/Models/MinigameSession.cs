@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Newtonsoft.Json;
 using SQLite;
 
 namespace Lutra.Core.Data.Models
@@ -34,6 +36,25 @@ namespace Lutra.Core.Data.Models
         /// Cada minijuego define su propia heurística.
         /// </summary>
         public float RelaxationScore { get; set; }
+
+        /// <summary>JSON serializado de las métricas propias del minijuego (p.ej. "max_layers").</summary>
+        [Column("MetricsJson")]
+        public string MetricsJson { get; set; }
+
+        // ── Propiedad de conveniencia (ignorada por SQLite) ────────────
+
+        /// <summary>
+        /// Métricas específicas del minijuego. Se serializa/deserializa automáticamente
+        /// desde/hacia <see cref="MetricsJson"/>.
+        /// </summary>
+        [Ignore]
+        public Dictionary<string, float> Metrics
+        {
+            get => string.IsNullOrEmpty(MetricsJson)
+                ? new Dictionary<string, float>()
+                : JsonConvert.DeserializeObject<Dictionary<string, float>>(MetricsJson);
+            set => MetricsJson = JsonConvert.SerializeObject(value);
+        }
 
         // ── Constructor sin parámetros requerido por sqlite-net-pcl ──
         public MinigameSession() { }

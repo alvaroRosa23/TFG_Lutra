@@ -124,7 +124,7 @@ namespace Lutra.UI.Components
 
         /// <summary>
         /// Oculta el contenido visual en los flujos sin navegación libre
-        /// (EmotionCheck, Login y OnboardingProfile).
+        /// (EmotionCheck, Login, OnboardingProfile, Settings y la pantalla post-minijuego).
         /// Usa _visualRoot para no desactivar el GameObject raíz y preservar la suscripción al EventBus.
         /// En cualquier otro estado lo muestra y actualiza el icono del botón central.
         /// </summary>
@@ -134,7 +134,8 @@ namespace Lutra.UI.Components
                        || state == AppState.Login
                        || state == AppState.OnboardingProfile
                        || state == AppState.Register
-                       || state == AppState.Settings;
+                       || state == AppState.Settings
+                       || state == AppState.MinigameActive;
 
             if (_visualRoot != null)
                 _visualRoot.SetActive(!hidden);
