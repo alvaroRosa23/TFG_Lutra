@@ -34,10 +34,6 @@ namespace Lutra.Minigames
         /// <summary>Última partida terminada y guardada; la lee PostMinigameScreen al recibir el foco.</summary>
         public MinigameOutcome LastOutcome { get; private set; }
 
-        // ── Unity lifecycle ────────────────────────────────────────────
-
-        private void Awake() { }
-
         // ── API pública ────────────────────────────────────────────────
 
         /// <summary>
@@ -124,11 +120,21 @@ namespace Lutra.Minigames
         /// <summary>
         /// Callback disparado por el minijuego al terminar.
         /// Persiste la sesión, comprueba el récord, emite eventos y navega a la pantalla post-juego.
+        /// Si la partida se abandonó (CompletedNaturally = false) no se guarda nada ni se dan
+        /// monedas: se descarga la escena y se vuelve directamente a la lista de minijuegos.
         /// </summary>
         private async Task _onMinigameFinished(MinigameResult result)
         {
             try
             {
+                if (!result.CompletedNaturally)
+                {
+                    Debug.Log($"[MinigameLoader] Partida abandonada ({result.Type}): no se guarda");
+                    await UnloadCurrentMinigame();
+                    AppStateMachine.Instance.TransitionTo(AppState.Minigames);
+                    return;
+                }
+
                 var repo = ServiceLocator.Get<DataRepository>();
 
                 // Récord previo: se consulta ANTES de guardar para poder comparar
@@ -148,8 +154,8 @@ namespace Lutra.Minigames
 
                 EventBus.EmitMinigameCompleted(session);
 
-                // Monedas por completar minijuego: Mathf.Max(3, estimatedTimeSeconds / 30)
-                int coinReward = _calculateMinigameCoinReward(result.Type);
+                // Monedas: las que calcule el minijuego o, si no, Mathf.Max(3, estimatedTimeSeconds / 30)
+                int coinReward = result.CoinReward ?? _calculateMinigameCoinReward(result.Type);
                 if (coinReward > 0)
                 {
                     await repo.AddCoins(coinReward);

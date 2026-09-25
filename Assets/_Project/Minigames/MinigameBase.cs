@@ -56,7 +56,7 @@ namespace Lutra.Minigames
 
         public void ResumeGame()
         {
-            if (_isPlaying) return;
+            if (_isPlaying || _result != null) return; // en curso o ya terminada
             _isPlaying = true;
             OnGameResumed();
         }
@@ -138,6 +138,24 @@ namespace Lutra.Minigames
         private static void _onApplicationQuitting() => _applicationQuitting = true;
 
         // ── Unity lifecycle ────────────────────────────────────────────
+
+        // Solo se reanuda al volver a primer plano si la pausa la provocó la app
+        // (no si el minijuego ya estaba pausado, p.ej. con un diálogo de salida abierto).
+        private bool _pausedByApplication;
+
+        protected virtual void OnApplicationPause(bool paused)
+        {
+            if (paused && _isPlaying)
+            {
+                _pausedByApplication = true;
+                PauseGame();
+            }
+            else if (!paused && _pausedByApplication)
+            {
+                _pausedByApplication = false;
+                ResumeGame();
+            }
+        }
 
         protected virtual void OnDestroy()
         {

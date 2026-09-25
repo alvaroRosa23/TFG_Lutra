@@ -14,5 +14,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Beatmaker.unity
     guid: 55d13fa834036bf438e7a45863d2e743
+  - enabled: 1
+    path: Assets/Scenes/BreathJump.unity
+    guid: e2b244d7313f3664f8a0f4a8eed8d09d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}

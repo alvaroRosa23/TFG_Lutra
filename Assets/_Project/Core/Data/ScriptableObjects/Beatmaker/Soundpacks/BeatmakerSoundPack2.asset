@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 421bad5c871fbcb478112120caf05c07, type: 3}
+  m_Name: BeatmakerSoundPack2
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.BeatmakerSoundPack
+  packName: Joy Day
+  bpm: 82
+  kickClips:
+  - {fileID: 8300000, guid: fec45df8246857c4d8de1f6cc9e4801c, type: 3}
+  - {fileID: 8300000, guid: 03ad5e3aea4e92047b62b09a94811ad0, type: 3}
+  hatClips:
+  - {fileID: 8300000, guid: ac1ffe578b5d49445a37249c272b19f7, type: 3}
+  - {fileID: 8300000, guid: 5c5a717f7d53aa7469c389f9bdf05a02, type: 3}
+  clapClips:
+  - {fileID: 8300000, guid: f9f9119d6eff6d3458f4b8180252a66a, type: 3}
+  - {fileID: 8300000, guid: 8e4e60fb92889dd449bdae941abd46ad, type: 3}
+  snareClips:
+  - {fileID: 8300000, guid: 77220c4a0474d274e819cf562833e500, type: 3}
+  - {fileID: 8300000, guid: 3144f90290fadc944bb6714afc3ea67e, type: 3}
+  loopClips:
+  - {fileID: 8300000, guid: e1e61727d65952f479f81fabc3b0f40e, type: 3}
+  - {fileID: 8300000, guid: c80cf0455344d3649b997aa50f27d1b9, type: 3}
+  loopNames:
+  - Do Your Thing
+  - Luella

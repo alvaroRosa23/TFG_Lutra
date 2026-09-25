@@ -19,8 +19,12 @@ namespace Lutra.Minigames
 
         private readonly bool[,] _steps = new bool[TrackCount, StepCount];
         private int _activeLoop = -1; // -1 = ningún loop activo
+        private int _activeStepCount;
 
         public int ActiveLoopIndex => _activeLoop;
+
+        /// <summary>Número total de notas (steps activos) en la rejilla.</summary>
+        public int ActiveStepCount => _activeStepCount;
 
         public static BeatmakerInstrument InstrumentOf(int track)
             => (BeatmakerInstrument)(track / BeatmakerSoundPack.VariationsPerInstrument);
@@ -34,6 +38,7 @@ namespace Lutra.Minigames
         {
             bool next = !_steps[track, step];
             _steps[track, step] = next;
+            _activeStepCount += next ? 1 : -1;
             return next;
         }
 
@@ -69,13 +74,6 @@ namespace Lutra.Minigames
             return _activeLoop;
         }
 
-        public bool HasAnyStepActive()
-        {
-            for (int t = 0; t < TrackCount; t++)
-                for (int s = 0; s < StepCount; s++)
-                    if (_steps[t, s]) return true;
-
-            return false;
-        }
+        public bool HasAnyStepActive() => _activeStepCount > 0;
     }
 }

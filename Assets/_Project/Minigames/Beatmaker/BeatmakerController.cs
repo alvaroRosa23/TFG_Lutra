@@ -26,96 +26,106 @@ namespace Lutra.Minigames
         private int  _lastTriggeredStep = -1;
         private bool _metronomeEnabled;
 
+        // Vista y motor son obligatorios: si falta alguno el controlador no hace nada
+        // (así el resto del código no necesita comprobar null en cada llamada).
+        private bool _hasDependencies;
+
         // ── Unity lifecycle ────────────────────────────────────────────
 
         private void Awake()
         {
             if (_view == null) _view = GetComponentInChildren<BeatmakerView>(true);
             if (_audioEngine == null) _audioEngine = GetComponentInChildren<BeatmakerAudioEngine>(true);
+
+            _hasDependencies = _view != null && _audioEngine != null;
+            if (!_hasDependencies)
+                Debug.LogError("[BeatmakerController] Falta asignar BeatmakerView o BeatmakerAudioEngine");
         }
 
         private void OnEnable()
         {
-            if (_view != null)
-            {
-                _view.OnStepToggled      += _onStepToggled;
-                _view.OnLoopToggled      += _onLoopToggled;
-                _view.OnPackSelected     += _onPackSelected;
-                _view.OnMetronomeToggled += _onMetronomeToggled;
-                _view.OnExitRequested    += _onExitRequested;
-            }
+            if (!_hasDependencies) return;
 
-            if (_audioEngine != null)
-                _audioEngine.OnStepTriggered += _onStepTriggered;
+            _view.OnStepToggled      += _onStepToggled;
+            _view.OnLoopToggled      += _onLoopToggled;
+            _view.OnPackSelected     += _onPackSelected;
+            _view.OnMetronomeToggled += _onMetronomeToggled;
+            _view.OnExitRequested    += _onExitRequested;
+            _audioEngine.OnStepTriggered += _onStepTriggered;
         }
 
         private void OnDisable()
         {
-            if (_view != null)
-            {
-                _view.OnStepToggled      -= _onStepToggled;
-                _view.OnLoopToggled      -= _onLoopToggled;
-                _view.OnPackSelected     -= _onPackSelected;
-                _view.OnMetronomeToggled -= _onMetronomeToggled;
-                _view.OnExitRequested    -= _onExitRequested;
-            }
+            if (!_hasDependencies) return;
 
-            if (_audioEngine != null)
-                _audioEngine.OnStepTriggered -= _onStepTriggered;
+            _view.OnStepToggled      -= _onStepToggled;
+            _view.OnLoopToggled      -= _onLoopToggled;
+            _view.OnPackSelected     -= _onPackSelected;
+            _view.OnMetronomeToggled -= _onMetronomeToggled;
+            _view.OnExitRequested    -= _onExitRequested;
+            _audioEngine.OnStepTriggered -= _onStepTriggered;
         }
 
         private void Update()
         {
             if (_pattern == null) return;
 
-            bool running = _audioEngine != null && _audioEngine.IsRunning;
-            _view?.UpdatePlayheads(running,
-                                   running ? _audioEngine.CycleProgress : 0f,
-                                   _pattern.ActiveLoopIndex,
-                                   running ? _audioEngine.LoopProgress : 0f);
+            bool running = _audioEngine.IsRunning;
+            _view.UpdatePlayheads(running,
+                                  running ? _audioEngine.CycleProgress : 0f,
+                                  _pattern.ActiveLoopIndex,
+                                  running ? _audioEngine.LoopProgress : 0f);
 
-            if (!_isPlaying || _metrics == null) return;
+            if (!_isPlaying) return;
 
             int layers = running ? _pattern.ActiveInstrumentCountAt(_lastTriggeredStep) : 0;
-            _metrics.Tick(Time.deltaTime, layers);
-            _view?.SetScore(Mathf.RoundToInt(_metrics.CalculateRelaxationScore() * 100f));
+            _metrics.Tick(Time.deltaTime, _pattern.ActiveStepCount, layers);
+            _view.SetScore(MinigameOutcome.ToDisplayScore(_metrics.CalculateRelaxationScore()));
         }
 
         // ── MinigameBase hooks ─────────────────────────────────────────
 
         protected override void OnInitialize()
         {
+            if (!_hasDependencies) return;
+
             _pattern = new BeatmakerPatternState();
             _metrics = new BeatmakerMetricsTracker();
             _activePackIndex = _pickSoundPackIndex();
             _lastTriggeredStep = -1;
             _metronomeEnabled = false;
 
-            _audioEngine?.Setup(_activePack, _pattern);
-            _audioEngine?.SetActiveLoop(-1);
-            _audioEngine?.SetMetronomeEnabled(false);
-            _view?.Initialize(_soundPacks, _activePackIndex);
+            _audioEngine.Setup(_activePack, _pattern);
+            _audioEngine.SetActiveLoop(-1);
+            _audioEngine.SetMetronomeEnabled(false);
+            _view.Initialize(_soundPacks, _activePackIndex);
         }
 
         // El transporte no arranca hasta que el usuario activa el primer step.
         protected override void OnGameStarted() => _syncTransport();
 
-        protected override void OnGamePaused() => _audioEngine?.Pause();
+        protected override void OnGamePaused()
+        {
+            if (_hasDependencies) _audioEngine.Pause();
+        }
 
         protected override void OnGameResumed()
         {
-            _audioEngine?.Resume();
+            if (!_hasDependencies) return;
+
+            _audioEngine.Resume();
             _syncTransport(); // por si se activaron/desactivaron steps durante la pausa
         }
 
         protected override void OnGameEnded(bool completedNaturally)
         {
-            _audioEngine?.StopTransport();
+            if (_hasDependencies) _audioEngine.StopTransport();
 
             float score = _metrics?.CalculateRelaxationScore() ?? 0f;
             Dictionary<string, float> metrics = _metrics?.BuildMetrics() ?? new Dictionary<string, float>();
 
             _result = BuildResult(score, completedNaturally, metrics);
+            _result.CoinReward = _metrics?.CalculateCoinReward() ?? 0;
         }
 
         // ── Handlers de vista / motor de audio ─────────────────────────
@@ -126,8 +136,9 @@ namespace Lutra.Minigames
         {
             if (_pattern == null) return;
 
+            _metrics.RegisterInteraction();
             bool active = _pattern.ToggleStep(track, step);
-            _view?.SetStepState(track, step, active);
+            _view.SetStepState(track, step, active);
             _syncTransport();
         }
 
@@ -135,34 +146,38 @@ namespace Lutra.Minigames
         {
             if (_pattern == null) return;
 
+            _metrics.RegisterInteraction();
             int previous = _pattern.ActiveLoopIndex;
             int nowActive = _pattern.SetActiveLoop(loopIndex);
 
             if (previous >= 0 && previous != nowActive)
-                _view?.SetLoopState(previous, false);
+                _view.SetLoopState(previous, false);
 
-            _audioEngine?.SetActiveLoop(nowActive);
-            if (nowActive >= 0) _metrics?.RegisterLoopUsed();
-
-            _view?.SetLoopState(loopIndex, nowActive == loopIndex);
+            _audioEngine.SetActiveLoop(nowActive);
+            _view.SetLoopState(loopIndex, nowActive == loopIndex);
         }
 
         private void _onPackSelected(int packIndex)
         {
+            if (_pattern == null) return;
             if (_soundPacks == null || packIndex < 0 || packIndex >= _soundPacks.Length) return;
             if (packIndex == _activePackIndex) return;
 
+            _metrics.RegisterInteraction();
             _activePackIndex = packIndex;
             _lastTriggeredStep = -1;
-            _audioEngine?.SetPack(_activePack);
-            _view?.ApplyPack(_activePack);
+            _audioEngine.SetPack(_activePack);
+            _view.ApplyPack(_activePack);
         }
 
         private void _onMetronomeToggled()
         {
+            if (_pattern == null) return;
+
+            _metrics.RegisterInteraction();
             _metronomeEnabled = !_metronomeEnabled;
-            _audioEngine?.SetMetronomeEnabled(_metronomeEnabled);
-            _view?.SetMetronomeState(_metronomeEnabled);
+            _audioEngine.SetMetronomeEnabled(_metronomeEnabled);
+            _view.SetMetronomeState(_metronomeEnabled);
         }
 
         // El usuario sale cuando quiere: salir es una finalización normal, no un abandono.
@@ -181,7 +196,7 @@ namespace Lutra.Minigames
         /// </summary>
         private void _syncTransport()
         {
-            if (_audioEngine == null || _pattern == null) return;
+            if (!_hasDependencies || _pattern == null) return;
 
             bool hasSteps = _pattern.HasAnyStepActive();
 

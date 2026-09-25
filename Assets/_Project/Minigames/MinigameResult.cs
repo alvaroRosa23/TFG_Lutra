@@ -23,6 +23,12 @@ namespace Lutra.Minigames
 
         public DateTime StartTime { get; set; }
 
+        /// <summary>
+        /// Monedas que otorga la partida según la puntuación del propio minijuego.
+        /// null = usar la recompensa genérica de MinigameLoader.
+        /// </summary>
+        public int? CoinReward { get; set; }
+
         public MinigameResult(MinigameType type, EmotionType emotionBefore)
         {
             Type         = type;

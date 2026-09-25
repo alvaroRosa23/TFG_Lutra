@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.MinigameDefinition
   minigameType: 5
   displayName: Respira y vuela
-  description: "Controla tu respiraci\xF3n para saltar entre plataformas y llegar
-    lo m\xE1s lejos posible."
+  description: "Mant\xE9n para inspirar y suelta para saltar. Sigue el ritmo
+    4-6 hasta llegar a la meta."
   logo: {fileID: 0}
   previewImage: {fileID: 0}
   tags: 0200000003000000
-  estimatedTimeSeconds: 120
+  estimatedTimeSeconds: 210
   isAvailable: 1

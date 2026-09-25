@@ -199,7 +199,7 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 - Investigar bug de tab Tienda en SafeZone (ver sección SafeZone más abajo)
 - **[EDITOR]** Añadir `ColorblindFeature` al `Renderer2D.asset`: Project → Settings/Renderer2D → Add Renderer Feature → Colorblind Feature → asignar shader `Lutra/Colorblind`
 
-**Minijuegos pendientes**: 8 por implementar (ver `docs/MINIGAMES.md`).
+**Minijuegos**: Beatmaker implementado; BreathJump con código listo (falta montar la escena); 6 por implementar (ver `docs/MINIGAMES.md`).
 
 ---
 

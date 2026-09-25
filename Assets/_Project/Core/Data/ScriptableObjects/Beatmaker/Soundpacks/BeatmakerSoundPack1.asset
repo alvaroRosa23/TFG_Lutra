@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 421bad5c871fbcb478112120caf05c07, type: 3}
   m_Name: BeatmakerSoundPack1
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.BeatmakerSoundPack
-  packName: Reggaeton
+  packName: Dark Ambience
   bpm: 80
   kickClips:
   - {fileID: 8300000, guid: aed48d0129eff3e4ab214c529c37df37, type: 3}

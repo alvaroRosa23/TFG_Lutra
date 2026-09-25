@@ -3834,6 +3834,9 @@ MonoBehaviour:
   _audioEngine: {fileID: 1699632995}
   _soundPacks:
   - {fileID: 11400000, guid: ed0103e26bb1016428fa6a0d4e651a77, type: 2}
+  - {fileID: 11400000, guid: 6483d8d8e27717044b3bf667ac18c800, type: 2}
+  - {fileID: 11400000, guid: 031f4112157214f4ca9219e8b6dfa69a, type: 2}
+  - {fileID: 11400000, guid: 3ca18f3eb5330724fb808666c7432ad5, type: 2}
 --- !u!4 &2136027355
 Transform:
   m_ObjectHideFlags: 0

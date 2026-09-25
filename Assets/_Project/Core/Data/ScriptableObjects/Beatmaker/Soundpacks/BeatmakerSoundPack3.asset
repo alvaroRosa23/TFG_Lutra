@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 421bad5c871fbcb478112120caf05c07, type: 3}
+  m_Name: BeatmakerSoundPack3
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.BeatmakerSoundPack
+  packName: Funky Rythm
+  bpm: 153
+  kickClips:
+  - {fileID: 8300000, guid: fcbe7777bed47cb408f7e4efa7e0b295, type: 3}
+  - {fileID: 8300000, guid: c69a989b99fb1d94e88bc788058538b5, type: 3}
+  hatClips:
+  - {fileID: 8300000, guid: b54fb19df93830848b6536f0f241d292, type: 3}
+  - {fileID: 8300000, guid: 180658a706673e540a8310f6ae452b06, type: 3}
+  clapClips:
+  - {fileID: 8300000, guid: a5225b4e1913d2d4b8a1389d0af48c49, type: 3}
+  - {fileID: 8300000, guid: 343921c62d9e9a44588ff470bb18e6e8, type: 3}
+  snareClips:
+  - {fileID: 8300000, guid: ed9134dbf7e0b1c4cb624e00596f16ed, type: 3}
+  - {fileID: 8300000, guid: 18721fc9e2e86e14c978a339aa452a93, type: 3}
+  loopClips:
+  - {fileID: 8300000, guid: 6436e891f931bfa48bab900d65eab45c, type: 3}
+  - {fileID: 8300000, guid: 8bf67f5d0c9571f4cadf15984f824024, type: 3}
+  loopNames:
+  - Super Funky
+  - Maiden Voyage

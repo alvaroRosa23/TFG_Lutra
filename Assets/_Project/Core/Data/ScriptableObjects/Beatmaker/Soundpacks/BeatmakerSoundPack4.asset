@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 421bad5c871fbcb478112120caf05c07, type: 3}
+  m_Name: BeatmakerSoundPack4
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.BeatmakerSoundPack
+  packName: Midnight Essence
+  bpm: 94
+  kickClips:
+  - {fileID: 8300000, guid: d8d36135f9b15a346a0f2473a7f04095, type: 3}
+  - {fileID: 8300000, guid: d334521a602db03478ddd2be3886afa1, type: 3}
+  hatClips:
+  - {fileID: 8300000, guid: adf3708a80ac85e499e71d26fee82a59, type: 3}
+  - {fileID: 8300000, guid: 424f5301c33ad3d4ca4736de807f4339, type: 3}
+  clapClips:
+  - {fileID: 8300000, guid: e593bb0d15e54dc4aa9c8a3c1dbc1e8b, type: 3}
+  - {fileID: 8300000, guid: e2bdf10973f856543a3b4bbeaf098940, type: 3}
+  snareClips:
+  - {fileID: 8300000, guid: a05c828f157ae8a49b34549b63d92f6d, type: 3}
+  - {fileID: 8300000, guid: 925db6e65fbb4b947b48ff7cefaaa04c, type: 3}
+  loopClips:
+  - {fileID: 8300000, guid: 47fe9e74a3595d44f83565e393bee124, type: 3}
+  - {fileID: 8300000, guid: 16b4c943f5b170e45a7413df7ad01a59, type: 3}
+  loopNames:
+  - 
+  - 

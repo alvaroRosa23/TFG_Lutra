@@ -277,7 +277,7 @@ namespace Lutra.Minigames
         {
             get
             {
-                if (_pack?.loopClips == null || _activeLoop < 0 || _activeLoop >= _pack.loopClips.Length) return null;
+                if (_pack == null || _pack.loopClips == null || _activeLoop < 0 || _activeLoop >= _pack.loopClips.Length) return null;
                 return _pack.loopClips[_activeLoop];
             }
         }
