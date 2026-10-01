@@ -6,6 +6,8 @@ using UnityEngine;
 using Firebase.Firestore;
 using Lutra.Core.Architecture;
 using Lutra.Core.Data.Models;
+using Lutra.Core.Data.Persistence;
+using Lutra.Core.Events;
 
 namespace Lutra.Core.Systems
 {
@@ -17,6 +19,37 @@ namespace Lutra.Core.Systems
     public class FirestoreManager : BaseService
     {
         private FirebaseFirestore _db;
+
+        private AuthManager _authManager;
+        private AuthManager Auth => _authManager ??= ServiceLocator.Get<AuthManager>();
+
+        // ── Unity lifecycle ────────────────────────────────────────────
+
+        // Las monedas cambian en muchos sitios (minijuegos, tienda, ventas): se suben a Firestore
+        // cada vez que alguien emite el nuevo total.
+        private void OnEnable()  => EventBus.OnCoinsChanged += _onCoinsChanged;
+        private void OnDisable() => EventBus.OnCoinsChanged -= _onCoinsChanged;
+
+        private void _onCoinsChanged(int total) => _ = _safeSaveCoins();
+
+        // Se lee el saldo de SQLite en vez de fiarse del evento (que emite 0 si no hay perfil)
+        private async Task _safeSaveCoins()
+        {
+            try
+            {
+                if (_db == null || !Auth.IsLoggedIn) return;
+
+                var profile = await ServiceLocator.Get<DataRepository>().GetUserProfile();
+                if (profile == null) return;
+                if (!string.IsNullOrEmpty(profile.FirebaseUserId) && profile.FirebaseUserId != Auth.CurrentUserId) return;
+
+                await SaveCoins(Auth.CurrentUserId, profile.Coins);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] Sync de monedas fallido: {ex.Message}");
+            }
+        }
 
         public Task<bool> InitializeAsync()
         {
@@ -263,7 +296,7 @@ namespace Lutra.Core.Systems
         }
 
         /// <summary>
-        /// Elimina el documento del usuario y toda su subcolección de diario.
+        /// Elimina el documento del usuario y sus subcolecciones de diario y estrellas.
         /// Llamar antes de borrar la cuenta de Firebase Auth.
         /// </summary>
         public async Task DeleteUserData(string firebaseUserId)
@@ -278,6 +311,11 @@ namespace Lutra.Core.Systems
 
                 QuerySnapshot diarySnap = await diaryRef.GetSnapshotAsync();
                 foreach (DocumentSnapshot doc in diarySnap.Documents)
+                    await doc.Reference.DeleteAsync();
+
+                // Borrar cada documento de la subcolección stars (colección de StarFisher)
+                QuerySnapshot starsSnap = await _starsCollection(firebaseUserId).GetSnapshotAsync();
+                foreach (DocumentSnapshot doc in starsSnap.Documents)
                     await doc.Reference.DeleteAsync();
 
                 // Borrar el documento principal del usuario
@@ -349,8 +387,11 @@ namespace Lutra.Core.Systems
                     itemIds.Add(d.ToString());
 
                 if (itemIds.Remove(itemId))
-                    await docRef.UpdateAsync(new Dictionary<string, object>
-                        { { "inventoryItems", itemIds } });
+                    await docRef.UpdateAsync(new Dictionary<FieldPath, object>
+                    {
+                        { new FieldPath("inventoryItems"), itemIds },
+                        { new FieldPath(PlacementsField, itemId), FieldValue.Delete }
+                    });
             }
             catch (Exception ex)
             {
@@ -383,6 +424,131 @@ namespace Lutra.Core.Systems
                 Debug.LogWarning($"[FirestoreManager] GetInventoryItemIds: {ex.Message}");
                 return new List<string>();
             }
+        }
+
+        /// <summary>
+        /// Guarda dónde está colocado un ítem de SafeZone (mapa inventoryPlacements: itemId → índice
+        /// del PlacementPoint). placementIndex &lt; 0 = no colocado (se borra la clave).
+        /// </summary>
+        public async Task SetInventoryPlacement(string firebaseUserId, string itemId, int placementIndex)
+        {
+            try
+            {
+                DocumentReference docRef = _db
+                    .Collection("users")
+                    .Document(firebaseUserId);
+
+                // FieldPath por segmentos: los itemId pueden ser numéricos ("2") o llevar puntos
+                object value = placementIndex >= 0 ? placementIndex : FieldValue.Delete;
+                await docRef.UpdateAsync(new Dictionary<FieldPath, object>
+                    { { new FieldPath(PlacementsField, itemId), value } });
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] SetInventoryPlacement: {ex.Message}");
+            }
+        }
+
+        /// <summary>Devuelve itemId → índice de colocación de los ítems colocados en SafeZone.</summary>
+        public async Task<Dictionary<string, int>> GetInventoryPlacements(string firebaseUserId)
+        {
+            var result = new Dictionary<string, int>();
+            try
+            {
+                DocumentSnapshot snapshot = await _db
+                    .Collection("users")
+                    .Document(firebaseUserId)
+                    .GetSnapshotAsync();
+
+                if (!snapshot.Exists || !snapshot.ContainsField(PlacementsField))
+                    return result;
+
+                var raw = snapshot.GetValue<Dictionary<string, object>>(PlacementsField);
+                foreach (var pair in raw)
+                    if (int.TryParse(pair.Value?.ToString(), out int index) && index >= 0)
+                        result[pair.Key] = index;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] GetInventoryPlacements: {ex.Message}");
+            }
+            return result;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // MONEDAS
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>Actualiza solo el saldo de monedas del perfil remoto.</summary>
+        public async Task SaveCoins(string firebaseUserId, int coins)
+        {
+            try
+            {
+                await _db.Collection("users")
+                    .Document(firebaseUserId)
+                    .SetAsync(new Dictionary<string, object> { { "coins", coins } }, SetOptions.MergeAll);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] SaveCoins: {ex.Message}");
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // COLECCIÓN DE ESTRELLAS (StarFisher)
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>Guarda (sobrescribe) una estrella de la colección en users/{uid}/stars/{starId}.</summary>
+        public async Task SaveStarEntry(string firebaseUserId, StarCollectionEntry entry)
+        {
+            try
+            {
+                var data = new Dictionary<string, object>
+                {
+                    { "timesCaught",   entry.TimesCaught },
+                    { "firstCaughtAt", entry.FirstCaughtAt.ToString("o") },
+                    { "lastCaughtAt",  entry.LastCaughtAt.ToString("o") }
+                };
+
+                await _starsCollection(firebaseUserId).Document(entry.StarId).SetAsync(data);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] SaveStarEntry: {ex.Message}");
+            }
+        }
+
+        public async Task<List<StarCollectionEntry>> GetStarCollection(string firebaseUserId)
+        {
+            var entries = new List<StarCollectionEntry>();
+            try
+            {
+                QuerySnapshot snapshot = await _starsCollection(firebaseUserId).GetSnapshotAsync();
+
+                foreach (DocumentSnapshot doc in snapshot.Documents)
+                {
+                    if (!doc.Exists) continue;
+                    var d = doc.ToDictionary();
+
+                    int.TryParse(d.TryGetValue("timesCaught", out var times) ? times?.ToString() : null, out int timesCaught);
+                    if (timesCaught <= 0) continue;
+
+                    entries.Add(new StarCollectionEntry
+                    {
+                        StarId        = doc.Id,
+                        TimesCaught   = timesCaught,
+                        FirstCaughtAt = _parseDate(d, "firstCaughtAt"),
+                        LastCaughtAt  = _parseDate(d, "lastCaughtAt")
+                    });
+                }
+
+                Debug.Log($"[FirestoreManager] Estrellas de la colección recuperadas: {entries.Count}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] GetStarCollection: {ex.Message}");
+            }
+            return entries;
         }
 
         public async Task<(DateTime? date, EmotionType emotion)> GetLastCheckIn(string firebaseUserId)
@@ -420,6 +586,23 @@ namespace Lutra.Core.Systems
                 Debug.LogWarning($"[FirestoreManager] GetLastCheckIn: {ex.Message}");
                 return (null, EmotionType.Calm);
             }
+        }
+
+        // ── Helpers privados ───────────────────────────────────────────
+
+        private const string PlacementsField = "inventoryPlacements";
+
+        private CollectionReference _starsCollection(string firebaseUserId) => _db
+            .Collection("users")
+            .Document(firebaseUserId)
+            .Collection("stars");
+
+        private static DateTime _parseDate(Dictionary<string, object> data, string key)
+        {
+            return data.TryGetValue(key, out var raw) && DateTime.TryParse(raw?.ToString(), null,
+                       System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
+                ? parsed
+                : DateTime.Now;
         }
     }
 }

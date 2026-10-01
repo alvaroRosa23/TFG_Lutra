@@ -8,6 +8,12 @@ La infraestructura base está lista (`IMinigame`, `MinigameBase`, `MinigameLoade
 
 **BreathJump**: código completo; **pendiente montar la escena en el editor** (guía paso a paso en su sección).
 
+**FruitNinja**: código completo (temática por decidir); **pendiente montar la escena** (guía en su sección).
+
+**StarFisher**: código completo (minijuego, colección de estrellas, telescopio de SafeZone y
+sincronización con Firestore); **pendiente montar la escena**, arte y audio. Diseño y guía de
+montaje en `docs/STARFISHER.md`.
+
 El resto de carpetas de minijuegos están pendientes de implementar.
 
 ## Pendientes de implementar (en orden)
@@ -15,13 +21,13 @@ El resto de carpetas de minijuegos están pendientes de implementar.
 | Orden | Carpeta | Mecánica | Emociones objetivo |
 |---|---|---|---|
 | 1 | `Unpacking/` | Ordenar objetos | tristeza, agotamiento |
-| 2 | `FruitNinja/` | Cortar objetos | frustración, ira |
+| 2 | `FruitNinja/` | Cortar objetos — **código listo, falta escena** | frustración, ira |
 | 3 | `Beatmaker/` | Secuenciador 8 pistas × 8 beats — **implementado** | tristeza, apatía |
 | 4 | `SandCastle/` | Arena + acelerómetro | estrés |
 | 5 | `FluidSim/` | Fluido interactivo | ansiedad |
 | 6 | `BreathJump/` | Plataformas con respiración como control — **código listo, falta escena** | ansiedad, agobio |
 | 7 | `Puzzle/` | Por definir | ansiedad, rumiación |
-| 8 | `StarFisher/` | Astronauta pesca estrellas con frases | tristeza, soledad |
+| 8 | `StarFisher/` | Astronauta pesca estrellas con frases — **código listo, falta escena** (`docs/STARFISHER.md`) | tristeza, soledad |
 
 Crear las carpetas en `Assets/_Project/Minigames/`.
 
@@ -117,11 +123,38 @@ duración de la vuelta)` (mínimo 1). A 80 BPM (vuelta de 1,5 s), un loop de 1 c
 ocupa 2 vueltas y uno de 2 compases (6 s), 4. Conviene que los clips duren un múltiplo
 exacto de 2 beats para que no se note el corte al reiniciar.
 
+**Programación del audio (sample-accurate)**: nada suena "en el frame en que toca". En cada
+`Update` se programan con `AudioSource.PlayScheduled` los steps, el metrónomo y el inicio de
+cada bloque del loop que caigan en los próximos `_scheduleAhead` s (0,1 s por defecto). El
+instante de cada step se calcula desde el arranque (`inicio + n × SecondsPerStep`), sin deriva.
+Los steps y el metrónomo usan un pool de voces (`_voiceCount`, 32); el loop usa dos fuentes
+alternas que se enlazan en el límite de cada bloque. Al elegir un pack se precargan sus clips
+(`LoadAudioData`), porque tienen *Preload Audio Data* desactivado.
+Consecuencia: un step que se active a menos de 0,1 s de sonar entra en la siguiente vuelta.
+
+**Ajuste de loops al tempo (`_fitLoopsToTempo`, activado)**: si un clip no dura exactamente sus
+N vueltas, se le cambia el pitch para que las dure (y se avisa por consola si la desviación
+supera el 1 %). Con los packs actuales:
+
+| Pack (BPM) | Loop | Duración | Vueltas | Tempo real aprox. | Pitch |
+|---|---|---|---|---|---|
+| 80 | KMRBI darkness / strings | 24,000 s | 16,00 | 80 | ×1,000 |
+| 82 | Loop 55 (Zapata) | 11,605 s | 7,93 | 82,7 | ×0,991 |
+| 82 | Loop 62 (Luella) | 11,715 s | 8,00 | 82 | ×1,001 |
+| 94 | Loop 36 (Total Eclipse) | 10,513 s | 8,24 | 91,3 | ×1,029 |
+| 94 | Loop 38 (Midnight Romance) | 10,015 s | 7,85 | 95,9 | ×0,981 |
+| 153 | Loop 56 (Super Funk) | 4,159 s | 5,30 | no cuadra (mal recortado) | ×1,061 |
+| 153 | Loop 66 (Maiden Voyage) | 12,637 s | 16,11 | 151,9 | ×1,007 |
+
+Lo ideal es reexportar esos loops al BPM exacto del pack (time-stretch sin cambiar el tono en
+el DAW) y recortados a un número exacto de compases: así el pitch queda en ×1,000.
+
 **Líneas de reproducción**: `_playhead` recorre la rejilla (cruza el borde izquierdo de cada
 step justo cuando suena, `CycleProgress`) y la línea del loop activo recorre su botón en las
-N vueltas que dura el loop (`LoopProgress`). El loop se reinicia en el step 1 de la primera
-vuelta de cada bloque de N (contando desde que arrancó el transporte); si se activa a mitad,
-entra en la posición que le toca para seguir sincronizado.
+N vueltas que dura el loop (`LoopProgress`); ambas se calculan a partir del mismo reloj
+(`dspTime − inicio`) con el que se programa el audio. El loop se reinicia en el step 1 de la
+primera vuelta de cada bloque de N (contando desde que arrancó el transporte); si se activa a
+mitad (o al reanudar tras una pausa), entra en la posición que le toca para seguir sincronizado.
 
 **Cambio de pack**: actualiza el texto de BPM y los nombres de loop; si está sonando,
 reinicia el ciclo desde el step 1 con el nuevo tempo, manteniendo el patrón.
@@ -132,7 +165,7 @@ reinicia el ciclo desde el step 1 con el nuevo tempo, manteniendo el patrón.
 |---|---|
 | `BeatmakerPatternState.cs` | Estado puro: rejilla `bool[8,8]` (pista × step) + loop activo; `InstrumentOf(track)` / `VariationOf(track)` |
 | `BeatmakerMetricsTracker.cs` | Acumula la puntuación (0-100), las monedas y los récords mientras dura la partida |
-| `BeatmakerAudioEngine.cs` | Transporte `dspTime`; `AudioSource` de beats, loop y metrónomo (se crean si faltan); `CycleProgress` |
+| `BeatmakerAudioEngine.cs` | Transporte `dspTime` con `PlayScheduled`; pool de voces, 2 fuentes de loop, ajuste de pitch de loops; `CycleProgress` / `LoopProgress` |
 | `BeatmakerTrackRow.cs` | Prefab de fila: etiqueta + 8 `Button` de step |
 | `BeatmakerView.cs` | Vista pura; genera las 8 filas, loops, metrónomo, dropdown de pack, BPM, puntuación y líneas |
 | `BeatmakerController.cs` | `: MinigameBase`; conecta patrón + audio + vista + métricas |
@@ -213,13 +246,16 @@ agradable. No hay game over.
 
 1. **Inspirar = mantener pulsado** (en cualquier punto de la pantalla, estando en una plataforma).
    La carga del salto sube de 0 a 1 en 4 s (`carga = tiempo pulsado / 4`, máx. 1). Mientras,
-   la nutria se agacha (squash), los bordes de la pantalla se oscurecen (viñeta), la cámara hace
+   la nutria se agacha (squash), los bordes de la pantalla se oscurecen (viñeta, curva ease-out
+   para que se note desde el primer instante), la cámara hace
    un zoom leve hacia la nutria y el círculo guía se expande y pasa de **blanco a rojo**.
    A los 4 s el círculo está en **rojo máximo** (= hay que soltar) y el texto cambia a
    "Suelta y espira". Mantener más de 4 s no da más distancia (pero la respiración ya no es perfecta).
 2. **Espirar = soltar**. La nutria salta y planea. La viñeta y el zoom se deshacen y el círculo
    se contrae y vuelve de rojo a **blanco** poco a poco durante los 6 s de espiración.
    Círculo blanco y pequeño = listo para inspirar otra vez.
+   Si se vuelve a pulsar antes de terminar la espiración, la viñeta, el zoom y el círculo parten
+   del nivel en que estaban (no caen a 0 de golpe) y suben hasta el máximo en los 4 s.
 3. El vuelo con carga completa dura **4,5 s** y aterriza en el **centro** de la siguiente
    plataforma. Los **1,5 s** restantes de espiración se pasan en la plataforma (texto "Espira...").
    Cuando el círculo termina de contraerse aparece "Mantén pulsado e inspira" y empieza la
@@ -422,3 +458,132 @@ Añadir `BreathJumpView` al Canvas y asignar: `_inputArea`, `_vignette`, `_guide
 mantener pulsado oscurece bordes y hace zoom, soltar salta y aterriza en el centro con 4 s,
 toques cortos no saltan, caer reaparece, el botón de salida vuelve a la lista y la meta abre
 PostMinigameScreen. Para probar rápido el final, bajar `breathsToComplete` a 3 en el Inspector.
+
+## FruitNinja (código completo, pendiente escena)
+
+Nombre en clave: **la temática de lo que se corta está por decidir** (no son frutas). Los
+elementos son genéricos (`SliceableView` + `SliceableDefinition`); sin assets asignados se
+usan círculos de colores generados en tiempo de ejecución, así que se puede probar ya.
+Objetivo: frustración / ira. Pasar de descargar tensión a recuperar el control: el ritmo baja
+durante la partida. Montaje **solo UI** (sin cámara ni RenderTexture, como Beatmaker).
+
+### Reglas
+
+- **Partida de 2 minutos** (`durationSeconds`). Los elementos salen desde abajo en arco y se
+  cortan deslizando el dedo. El trazo solo corta si el dedo va a más de `minSwipeSpeed`
+  (900 unidades/s); más lento solo dibuja la estela.
+- **Sin bombas ni game over.** Si un elemento cae sin cortar: **penalización leve** (−1 punto
+  por caída sobre 100), destello rojo y se **rompe la racha**.
+- **Fases (el ritmo baja)**:
+
+| Fase | Tiempo | Oleada cada | Elementos por oleada | Vuelo | Tamaño | Especiales |
+|---|---|---|---|---|---|---|
+| Descarga | 0–45 s | 0,8–1,2 s | 2–5 | 2 s | ×1 | sí |
+| Transición | 45–80 s | se interpola suavemente | | | | cada vez menos |
+| Calma | 80–120 s | 2–2,6 s | 1–2 | 3,4 s | ×1,35 | no |
+
+  Cada cambio de fase muestra un mensaje ("¡Córtalo todo!", "Poco a poco, más despacio...",
+  "Con calma. Respira."). Se deja de lanzar cuando quedan ~3,9 s (`LastSpawnMargin`) para que
+  todo caiga antes del final.
+- **Combos**: elementos cortados en un mismo trazo (el combo se cierra al levantar el dedo o
+  tras 0,35 s sin cortar). Desde 3 se muestra "Combo xN".
+- **Combo grande (más de 5, `bigComboThreshold = 6`)**: zoom rápido y fuerte hacia el punto del
+  combo (×1,25: entra en 0,06 s, se mantiene 0,12 s y vuelve en 0,35 s) con un congelado breve del
+  mundo (0,15 s al 10 %). Tiene un enfriamiento de 2,5 s para que no se repita sin parar.
+- **Elementos especiales** (llevan un aro de color que late). Como mucho uno por oleada, con
+  probabilidad 15 % por oleada en Descarga que baja a 0 en Calma, y al menos 7 s entre especiales:
+
+| Especial | Aro | Al cortarlo |
+|---|---|---|
+| Ráfaga (`Burst`) | naranja | salen 6 elementos juntos desde abajo (pensado para el combo grande) |
+| Lluvia (`Rain`) | azul | durante 3 s caen elementos desde arriba (uno cada 0,25 s), sin oleadas normales |
+| Desde los lados (`Crossfire`) | morado | durante 4 s entran elementos alternando izquierda/derecha (uno cada 0,45 s) |
+| Cámara lenta (`SlowMotion`) | turquesa | el mundo va a la mitad de velocidad durante 3 s (el reloj de la partida no se ralentiza) |
+
+  Los especiales cuentan como elementos normales: si se caen, penalizan.
+- **Final**: al llegar a 0:00 aparece "¡Tiempo!", se espera a que no quede nada en el aire
+  (máximo 6 s) y 1,5 s después ⇒ PostMinigameScreen. Sin caídas: "¡Perfecto! No se ha caído nada".
+- **Salir**: igual que BreathJump (diálogo, pausa; "Sí" = abandono sin guardar).
+
+### Puntuación (0–100) y monedas
+
+`puntuación = 100 × cortados / (cortados + caídos) − 1 × caídos`, limitada a [0, 100].
+**Solo se llega a 100 cortándolo todo sin que caiga nada**; con alguna caída el máximo es 99.
+Durante la partida marca 100 mientras no se caiga nada y baja con cada caída.
+Ejemplo (~250 elementos): 1 caída ⇒ 98; 5 caídas ⇒ 93; 25 caídas ⇒ 65.
+Monedas = puntos / 10. Los combos y especiales no suman puntos: son feedback.
+
+### Métricas persistidas
+
+`objects_spawned`, `objects_cut`, `objects_missed`, `specials_cut`, `accuracy` (0-1),
+`best_streak`, `max_combo`, `big_combos` (combos de 6 o más).
+
+### Archivos (`Assets/_Project/Minigames/FruitNinja/`)
+
+| Archivo | Rol |
+|---|---|
+| `FruitNinjaTuning.cs` | Parámetros serializables: duración, fases, oleadas, corte, combo grande, especiales, penalización |
+| `FruitNinjaEnums.cs` | `FruitNinjaPhase`, `SpawnOrigin`, `SpawnRequest` |
+| `FruitNinjaSpawnPlanner.cs` | Lógica pura: oleadas por fase, especiales y sus efectos (ráfaga, lluvia, laterales) |
+| `FruitNinjaMetricsTracker.cs` | Puntuación, racha, combos, monedas y métricas |
+| `FruitNinjaField.cs` | Lanza (trayectorias), mueve, corta (segmento vs círculo), detecta caídas; pool de elementos |
+| `SliceableView.cs` | Elemento: movimiento, aro de especial, corte en dos mitades (Image Filled) que se separan y desvanecen |
+| `FruitNinjaSwipeInput.cs` | Zona táctil: trazos (segmento + velocidad) en coordenadas del campo |
+| `FruitNinjaSwipeTrail.cs` | Estela del dedo (`MaskableGraphic` con malla propia) |
+| `FruitNinjaView.cs` | HUD: tiempo, puntuación, racha, combo, mensajes, destello de caída, zoom, diálogo de salida |
+| `FruitNinjaController.cs` | `: MinigameBase`; tiempo del mundo (cámara lenta, congelado), combos, final |
+
+También: `SliceableKind` (enum, `Core/Data/Models/`) y `SliceableDefinition` (ScriptableObject,
+`Core/Data/ScriptableObjects/`, menú *Lutra/Sliceable Definition*: `kind`, `sprite`, `color`,
+`sizeMultiplier`). Los `Normal` se eligen al azar; para cada especial se usa el primero de su `kind`.
+
+### Montaje en Unity (paso a paso)
+
+**1. Escena**: File → New Scene → *Empty*. Guardar como `Assets/Scenes/FruitNinja.unity` y añadirla
+a Build Profiles → Scene List. **No** añadir EventSystem (ya lo tiene `Main`).
+
+**2. Raíz**: GameObject vacío `FruitNinja` → Add Component → `FruitNinjaController`.
+
+**3. Canvas** (hijo de la raíz): UI → Canvas, *Screen Space - Overlay*, **Sort Order = 10**,
+Canvas Scaler *Scale With Screen Size* 1080×1920, Match 0. Hijos **en este orden**:
+
+| # | Objeto | Componentes / ajustes |
+|---|---|---|
+| 1 | `Background` | `Image` a pantalla completa con el color de fondo, Raycast Target off |
+| 2 | `ZoomRoot` | `RectTransform` vacío a pantalla completa (anchors stretch, offsets 0, **pivote 0,5/0,5**): es lo que hace zoom |
+| 2a | `ZoomRoot/Items` | hijo a pantalla completa (pivote centro) + `FruitNinjaField` (`_root` = Items). Aquí se crean los elementos |
+| 2b | `ZoomRoot/Trail` | hermano **posterior** a Items (se dibuja encima), a pantalla completa + `FruitNinjaSwipeTrail` (color blanco semitransparente) |
+| 3 | `InputArea` | `Image` a pantalla completa, alfa 0, Raycast Target **on** + `FruitNinjaSwipeInput` (`_space` = Items) |
+| 4 | `MissFlash` | `Image` a pantalla completa, color transparente, Raycast Target off |
+| 5 | `TimerLabel`, `ScoreLabel`, `StreakLabel` | TMP arriba |
+| 6 | `MessageLabel` | TMP centrado arriba (el `CanvasGroup` se añade solo) |
+| 7 | `ComboLabel` | TMP grande en el centro |
+| 8 | `ExitButton` | `Button` en una esquina |
+| 9 | `ExitConfirmPanel` | Panel a pantalla completa con "¿Salir? Perderás el progreso" y botones `Yes` / `No`. Desactivado |
+
+**4. View**: añadir `FruitNinjaView` al Canvas y asignar `_zoomRoot` (ZoomRoot), etiquetas,
+`_missFlash`, `_exitButton`, `_exitConfirmPanel`, `_exitConfirmButton`, `_exitCancelButton`.
+
+**5. Controller**: asignar `_view`, `_field`, `_input`, `_trail` (si se dejan vacíos los busca en hijos).
+
+**6. Aspecto (opcional)**: crear assets *Lutra/Sliceable Definition* y ponerlos en `_definitions`
+de `FruitNinjaField`. `_prefab` también es opcional (un GameObject con `SliceableView` basta: las
+partes se crean solas).
+
+**7. Registrar en Main**: `MinigameLoader._minigameScenes` → `type = FruitNinja`, `sceneName = FruitNinja`;
+`_minigameDefinitions` → `Core/Data/ScriptableObjects/Minigames/FruitNinja.asset` (duración
+estimada ya puesta a 120 s; el nombre visible "Frutas Frutosas" habrá que cambiarlo con la temática).
+
+**8. Probar**: para probar rápido las fases, bajar en el Inspector `durationSeconds` (p. ej. 40),
+`releaseEndSeconds` (10) y `calmStartSeconds` (20); para ver especiales, subir `specialChancePerWave` a 1
+y bajar `minSecondsBetweenSpecials`.
+
+## StarFisher (código completo, pendiente escena)
+
+Documentación completa (diseño, reglas, probabilidades, persistencia, archivos y montaje paso a
+paso) en **`docs/STARFISHER.md`**. Resumen: 5 lanzamientos; barra de fuerza que oscila; espera de
+5-10 s guiando el anzuelo hacia zonas brillantes; picada con 2 s para tocar; recogida a toques
+(5/7/9/12/15 según la rareza, escapa tras 1,5 s sin tocar) con zoom y bordes del color de la
+rareza; ficha de la estrella y liberación arrastrándola hacia arriba.
+Puntuación = estrellas pescadas / 5. Monedas: 1 por común/poco común, 3 por rara, 6 por
+épica/legendaria, tope 10.

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7f340997ff9be444a3a414312ba51e6, type: 3}
+  m_Name: Star 10
+  m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
+  starId: 11
+  displayName: Vela
+  rarity: 0
+  isStreakSpecial: 0
+  sprite: {fileID: 0}
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  weight: 1.05
+  age: 3900M
+  description: "Vela parpadea. Tiene manchas oscuras que a veces le apagan parte
+    de la luz, y durante a\xF1os crey\xF3 que se estaba rompiendo. Esta aprendiendo
+    a aceptar que parpadear forma parte de ser una estrella."
+  phrase: "\"Supongo que tener altibajos no significa que est\xE9 perdiendo mi luz...\""

@@ -16456,9 +16456,12 @@ MonoBehaviour:
     sceneName: Beatmaker
   - type: 5
     sceneName: BreathJump
+  - type: 1
+    sceneName: FruitNinja
   _minigameDefinitions:
   - {fileID: 11400000, guid: 126d4c0163c73f8428d78830f3326f06, type: 2}
   - {fileID: 11400000, guid: 2c299b6461c813f498aab8e9f7e25c82, type: 2}
+  - {fileID: 11400000, guid: bd399cfd7841fca4a830340fee5cb3b3, type: 2}
 --- !u!1 &464400840
 GameObject:
   m_ObjectHideFlags: 0

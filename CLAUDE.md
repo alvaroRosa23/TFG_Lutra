@@ -7,6 +7,7 @@ Guía para Claude Code en este repositorio.
 > - `docs/FEATURES.md` — features Auth, EmotionCheck, Diary, Minigames, Charts, Settings
 > - `docs/DATA_MODELS.md` — modelos SQLite, enumeraciones, ScriptableObjects
 > - `docs/MINIGAMES.md` — infraestructura base y minijuegos pendientes
+> - `docs/STARFISHER.md` — minijuego StarFisher, colección de estrellas y telescopio
 > - `docs/BUGS.md` — bugs resueltos, pendientes de build y auditoría de calidad
 
 ---
@@ -199,7 +200,9 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 - Investigar bug de tab Tienda en SafeZone (ver sección SafeZone más abajo)
 - **[EDITOR]** Añadir `ColorblindFeature` al `Renderer2D.asset`: Project → Settings/Renderer2D → Add Renderer Feature → Colorblind Feature → asignar shader `Lutra/Colorblind`
 
-**Minijuegos**: Beatmaker implementado; BreathJump con código listo (falta montar la escena); 6 por implementar (ver `docs/MINIGAMES.md`).
+**Minijuegos**: Beatmaker implementado; BreathJump, FruitNinja y StarFisher con código listo (falta montar las escenas); 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
+
+**Firestore**: todo lo que consigue el usuario debe sincronizarse para restaurarse en otro dispositivo (monedas vía `EventBus.OnCoinsChanged`, inventario y colocaciones, colección de estrellas). Al añadir datos nuevos, añadir también su subida y su restauración en `LoginController`.
 
 ---
 

@@ -80,6 +80,11 @@ Backup remoto:
 - `GetCheckInHistory(userId)` → `List<DateTime>` — historial de hasta 60 días
 - `SaveDiaryEntry(userId, DiaryEntry)` — escribe/sobreescribe subcollección `diary/{yyyy-MM-dd}`
 - `GetDiaryEntries(userId)` → `List<DiaryEntry>` — recupera todas las entradas del diario
+- `AddInventoryItem` / `RemoveInventoryItem` / `GetInventoryItemIds` — array `inventoryItems` (quitar un ítem borra también su colocación)
+- `SetInventoryPlacement(userId, itemId, index)` / `GetInventoryPlacements(userId)` — mapa `inventoryPlacements` (índice < 0 borra la clave). Lo escribe `SafeZoneController` en cada colocación y lo restaura `LoginController`
+- `SaveCoins(userId, coins)` — **se llama solo**: `FirestoreManager` escucha `EventBus.OnCoinsChanged` y sube el saldo leído de SQLite
+- `SaveStarEntry(userId, StarCollectionEntry)` / `GetStarCollection(userId)` — colección de StarFisher (`stars/{starId}`); la restaura `LoginController` con `StarCollectionStore.RestoreFromFirestoreAsync`
+- `DeleteUserData` borra también la subcolección `stars`
 
 ### Firebase — estructura de datos
 
@@ -91,6 +96,13 @@ name, surname, email, dateOfBirth (yyyy-MM-dd), culture (int),
 hobbiesJson, coins, creationDate (yyyy-MM-dd),
 lastCheckInDate (yyyy-MM-dd), lastEmotionType (int),
 checkInHistory: ["yyyy-MM-dd", ...]   // array, máx 60 entradas, orden ascendente
+inventoryItems: ["itemId", ...]        // ítems comprados / ganados de SafeZone
+inventoryPlacements: { itemId: int }   // índice del PlacementPoint de cada ítem colocado
+```
+
+Subcollección `users/{uid}/stars/{starId}` (colección de StarFisher):
+```
+timesCaught (int), firstCaughtAt (ISO 8601), lastCaughtAt (ISO 8601)
 ```
 
 Subcollección `users/{uid}/diary/{yyyy-MM-dd}`:

@@ -64,6 +64,20 @@ Reemplaza al antiguo `UnlockedItem` (tabla `UnlockedItems`). El archivo `Unlocke
 
 ---
 
+### StarCollectionEntry (tabla `StarCollection`)
+```csharp
+int      Id              // PK autoincrement
+string   StarId          // único; StarDefinition.starId
+int      TimesCaught
+DateTime FirstCaughtAt
+DateTime LastCaughtAt    // la estrella de racha se da una vez al día: se mira esta fecha
+```
+Estrellas descubiertas en StarFisher (siempre se liberan; solo queda el registro). Se sincroniza
+con Firestore en `users/{uid}/stars/{StarId}`. Acceso: `DataRepository.GetStarCollection`,
+`RegisterStarCatch`, `MergeStarCollectionEntry` (a través de `StarCollectionStore`).
+
+---
+
 ### MinigameSession (tabla `MinigameSessions`)
 ```csharp
 int          Id                  // PK autoincrement
@@ -218,9 +232,20 @@ int           requiredStreakDays   // 0 = compra con monedas; >0 = desbloqueo po
 ItemCategory  category             // Furniture, Plant, Decoration, WallItem, MascotAccessory
 PlacementType placementType        // debe coincidir con acceptedTypes del PlacementPoint destino
 bool          isUnlockedByDefault  // true = se desbloquea automáticamente al abrir SafeZone
+bool          isRewardOnly         // true = solo como recompensa (telescopio): no sale en la tienda ni se vende
+SafeZoneItemInteraction interaction // None | StarSky: botón "Usar" en el menú del ítem colocado
+string        interactionLabel     // texto de ese botón ("Mirar las estrellas")
 ```
 - Asignar todos los assets al array `_allItems` del `SafeZoneController` en el Inspector
 - `MascotAccessory` no aparece en la barra de inventario ni se coloca en la habitación; se gestiona desde `MascotCustomizer`
+
+### StarDefinition / StarCatalog (`Core/Data/ScriptableObjects/`)
+`StarDefinition` (menú *Lutra/Star Definition*): `starId`, `displayName`, `rarity` (`StarRarity`),
+`isStreakSpecial`, `sprite`, `tint`, `weight`, `age`, `description`, `phrase`.
+`StarCatalog` (menú *Lutra/Star Catalog*): `stars[]`, `rarityColors[5]`, `telescopeItemId`.
+Se generan con **Lutra > StarFisher > Crear catálogo de ejemplo** (ver `docs/STARFISHER.md`).
+
+`StarRarity` (enum, `Core/Data/Models/`): `Common, Uncommon, Rare, Epic, Legendary` (+ `ToDisplayName()`).
 
 ### RewardDefinition
 ScriptableObject evaluado por `RewardSystem`.

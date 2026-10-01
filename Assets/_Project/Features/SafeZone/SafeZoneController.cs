@@ -5,8 +5,10 @@ using UnityEngine;
 using Lutra.Core.Architecture;
 using Lutra.Core.Data.Models;
 using Lutra.Core.Data.Persistence;
+using Lutra.Core.Data.ScriptableObjects;
 using Lutra.Core.Events;
 using Lutra.Core.Systems;
+using Lutra.Features.StarCollection;
 using Lutra.UI.Components;
 
 namespace Lutra.Features.SafeZone
@@ -15,11 +17,19 @@ namespace Lutra.Features.SafeZone
     /// Controlador de la Zona Segura.
     /// Gestiona inventario, compras con confirmación, colocación en la habitación
     /// y venta de ítems a un 50% de su precio original.
+    /// Las colocaciones se sincronizan con Firestore para restaurarlas en otro dispositivo.
+    /// También abre el libro de colección de estrellas (objeto fijo de la habitación) y el cielo
+    /// del telescopio (ítem con interacción StarSky).
     /// </summary>
     public class SafeZoneController : MonoBehaviour
     {
         [SerializeField] private SafeZoneView   _view;
         [SerializeField] private SafeZoneItem[] _allItems;
+
+        [Header("Estrellas (StarFisher)")]
+        [SerializeField] private StarCatalog                  _starCatalog;
+        [SerializeField] private StarCollectionBookController _starBook;
+        [SerializeField] private StarSkyView                  _starSky;
 
         // ── Servicios (lazy) ───────────────────────────────────────────
 
@@ -69,6 +79,8 @@ namespace Lutra.Features.SafeZone
                 await _loadInventory();
                 await _unlockDefaultItems();
                 await _unlockStreakItems();
+                if (await _grantStarCollectionReward())
+                    await _loadInventory();
 
                 _refreshView();
             }
@@ -168,9 +180,9 @@ namespace Lutra.Features.SafeZone
                     i.IsPlaced && i.PlacementIndex == pointIndex && i.UserId == _cachedProfile.Id);
 
                 if (existing != null)
-                    await Repo.SetItemPlacement(_cachedProfile.Id, existing.ItemId, false, -1);
+                    await _setPlacement(existing.ItemId, false, -1);
 
-                await Repo.SetItemPlacement(_cachedProfile.Id, item.itemId, true, pointIndex);
+                await _setPlacement(item.itemId, true, pointIndex);
 
                 await _loadInventory();
                 _refreshView();
@@ -231,7 +243,7 @@ namespace Lutra.Features.SafeZone
             try
             {
                 _view?.HideAllDialogs();
-                await Repo.SetItemPlacement(_cachedProfile.Id, item.itemId, false, -1);
+                await _setPlacement(item.itemId, false, -1);
                 await _loadInventory();
                 _refreshView();
             }
@@ -252,6 +264,8 @@ namespace Lutra.Features.SafeZone
             _pendingSell   = null;
             _pendingRemove = null;
 
+            if (item.isRewardOnly) return; // las recompensas no se venden
+
             try
             {
                 _view?.HideAllDialogs();
@@ -260,7 +274,7 @@ namespace Lutra.Features.SafeZone
                 // Si el ítem está colocado en la habitación, descolocarlo primero
                 var invItem = _inventory.Find(i => i.ItemId == item.itemId);
                 if (invItem != null && invItem.IsPlaced)
-                    await Repo.SetItemPlacement(_cachedProfile.Id, item.itemId, false, -1);
+                    await _setPlacement(item.itemId, false, -1);
 
                 await Repo.RemoveItem(_cachedProfile.Id, item.itemId);
                 if (refund > 0)
@@ -303,9 +317,9 @@ namespace Lutra.Features.SafeZone
                     i.IsPlaced && i.PlacementIndex == pointIndex);
 
                 if (existing != null)
-                    await Repo.SetItemPlacement(_cachedProfile.Id, existing.ItemId, false, -1);
+                    await _setPlacement(existing.ItemId, false, -1);
 
-                await Repo.SetItemPlacement(_cachedProfile.Id, itemId, true, pointIndex);
+                await _setPlacement(itemId, true, pointIndex);
 
                 await _loadInventory();
                 _refreshView();
@@ -317,7 +331,101 @@ namespace Lutra.Features.SafeZone
             }
         }
 
+        // ── Estrellas: libro y telescopio ──────────────────────────────
+
+        private void _onStarBookRequested()
+        {
+            if (_starBook == null)
+            {
+                Debug.LogWarning("[SafeZoneController] _starBook no asignado en Inspector.");
+                return;
+            }
+            _view?.HideAllDialogs();
+            _starBook.Open();
+        }
+
+        private void _onUseItemRequested()
+        {
+            var item = _pendingRemove;
+            _pendingRemove = null;
+            _pendingSell   = null;
+            _view?.HideAllDialogs();
+
+            if (item != null && item.interaction == SafeZoneItemInteraction.StarSky)
+                _ = _safeOpenStarSky();
+        }
+
+        private async Task _safeOpenStarSky()
+        {
+            try
+            {
+                if (_starSky == null || _starCatalog == null)
+                {
+                    Debug.LogWarning("[SafeZoneController] Falta asignar _starSky o _starCatalog.");
+                    return;
+                }
+
+                var collection = new StarCollectionStore(_starCatalog);
+                await collection.LoadAsync();
+
+                var discovered = new List<StarDefinition>();
+                if (_starCatalog.stars != null)
+                    foreach (var star in _starCatalog.stars)
+                        if (star != null && collection.IsDiscovered(star.starId)) discovered.Add(star);
+
+                _starSky.Open(discovered, _starCatalog);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SafeZoneController] _safeOpenStarSky: {ex.Message}");
+                ToastNotification.ShowError("Algo fue mal, inténtalo de nuevo");
+            }
+        }
+
+        /// <summary>
+        /// Red de seguridad: si la colección está completa pero el telescopio no está en el
+        /// inventario (p. ej. falló el guardado al pescar), se entrega ahora.
+        /// </summary>
+        private async Task<bool> _grantStarCollectionReward()
+        {
+            if (_starCatalog == null) return false;
+            try
+            {
+                var collection = new StarCollectionStore(_starCatalog);
+                await collection.LoadAsync();
+                bool granted = await collection.GrantRewardIfCompleteAsync();
+                if (granted) ToastNotification.ShowSuccess("¡Colección completa! Tienes un telescopio nuevo");
+                return granted;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SafeZoneController] _grantStarCollectionReward: {ex.Message}");
+                return false;
+            }
+        }
+
         // ── Helpers ────────────────────────────────────────────────────
+
+        /// <summary>Guarda la colocación en SQLite y la sube a Firestore en segundo plano.</summary>
+        private async Task _setPlacement(string itemId, bool isPlaced, int placementIndex)
+        {
+            if (_cachedProfile == null) return;
+            await Repo.SetItemPlacement(_cachedProfile.Id, itemId, isPlaced, placementIndex);
+            _ = _syncPlacementToFirestore(itemId, isPlaced ? placementIndex : -1);
+        }
+
+        private async Task _syncPlacementToFirestore(string itemId, int placementIndex)
+        {
+            try
+            {
+                if (!Auth.IsLoggedIn) return;
+                await Firestore.SetInventoryPlacement(Auth.CurrentUserId, itemId, placementIndex);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SafeZoneController] Sync de colocación a Firestore fallido: {ex.Message}");
+            }
+        }
 
         private async Task _loadInventory()
         {
@@ -426,6 +534,8 @@ namespace Lutra.Features.SafeZone
             _view.OnSellConfirmed            += _onSellConfirmed;
             _view.OnSellCancelled            += _onSellCancelled;
             _view.OnDropReceived             += _onDropReceived;
+            _view.OnStarBookRequested        += _onStarBookRequested;
+            _view.OnUseItemRequested         += _onUseItemRequested;
         }
 
         private void _unsubscribeFromView()
@@ -444,6 +554,8 @@ namespace Lutra.Features.SafeZone
             _view.OnSellConfirmed            -= _onSellConfirmed;
             _view.OnSellCancelled            -= _onSellCancelled;
             _view.OnDropReceived             -= _onDropReceived;
+            _view.OnStarBookRequested        -= _onStarBookRequested;
+            _view.OnUseItemRequested         -= _onUseItemRequested;
         }
     }
 }

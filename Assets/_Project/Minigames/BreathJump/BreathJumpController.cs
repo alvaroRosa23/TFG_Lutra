@@ -36,6 +36,7 @@ namespace Lutra.Minigames
         // Inspiración en curso
         private bool  _inhaling;
         private float _inhaleElapsed;
+        private float _inhaleStartBreath; // nivel mostrado al empezar a inspirar (continuidad visual)
 
         // Espiración: desde que se suelta hasta la siguiente inspiración
         private bool  _exhaling;
@@ -185,6 +186,9 @@ namespace Lutra.Minigames
                 _showBreathResult(_metrics.RegisterBreath(_pendingInhale, _exhaleElapsed, _pendingCorrected));
             }
 
+            // La nueva inspiración parte del nivel que se está mostrando: si aún quedaba
+            // espiración, la viñeta y el zoom no caen a 0 de golpe para luego volver a subir.
+            _inhaleStartBreath = _breathLevel();
             _exhaling      = false;
             _inhaling      = true;
             _inhaleElapsed = 0f;
@@ -315,6 +319,7 @@ namespace Lutra.Minigames
         {
             _inhaling         = false;
             _inhaleElapsed    = 0f;
+            _inhaleStartBreath = 0f;
             _exhaling         = false;
             _exhaleElapsed    = 0f;
             _breathAtRelease  = 0f;
@@ -327,7 +332,7 @@ namespace Lutra.Minigames
         /// <summary>0-1: sube con la inspiración y baja durante la espiración.</summary>
         private float _breathLevel()
         {
-            if (_inhaling) return _charge;
+            if (_inhaling) return Mathf.Lerp(_inhaleStartBreath, 1f, _charge);
             if (_exhaling) return _breathAtRelease * (1f - Mathf.Clamp01(_exhaleElapsed / _tuning.exhaleSeconds));
             return 0f;
         }

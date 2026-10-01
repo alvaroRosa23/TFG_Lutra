@@ -5,6 +5,7 @@ using Lutra.Core.Architecture;
 using Lutra.Core.Data.Models;
 using Lutra.Core.Data.Persistence;
 using Lutra.Core.Systems;
+using Lutra.Features.StarCollection;
 using Lutra.UI.Theme;
 
 namespace Lutra.Features.Auth
@@ -145,11 +146,48 @@ namespace Lutra.Features.Auth
 
                 if (restored > 0)
                     Debug.Log($"[LoginController] Ítems de inventario restaurados desde Firestore: {restored}");
+
+                await _restorePlacementsFromFirestore(repo, userId, firestoreManager);
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[LoginController] No se pudo restaurar inventario desde Firestore: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Recoloca en la habitación los ítems que estaban colocados en Firestore, sin tocar los
+        /// que ya estén colocados en local ni ocupar un punto que ya esté en uso.
+        /// </summary>
+        private async Task _restorePlacementsFromFirestore(DataRepository repo, int userId,
+                                                           FirestoreManager firestoreManager)
+        {
+            var placements = await firestoreManager.GetInventoryPlacements(AuthManagerService.CurrentUserId);
+            if (placements.Count == 0) return;
+
+            var local = await repo.GetInventoryItems(userId);
+            var usedPoints = new System.Collections.Generic.HashSet<int>();
+            foreach (var item in local)
+                if (item.IsPlaced) usedPoints.Add(item.PlacementIndex);
+
+            int restored = 0;
+            foreach (var pair in placements)
+            {
+                // Los ítems por defecto no están en inventoryItems: se desbloquean aquí si hace falta
+                var item = local.Find(i => i.ItemId == pair.Key);
+                if (item == null)
+                    await repo.UnlockItem(userId, pair.Key);
+                else if (item.IsPlaced)
+                    continue;
+
+                if (!usedPoints.Add(pair.Value)) continue;
+
+                await repo.SetItemPlacement(userId, pair.Key, true, pair.Value);
+                restored++;
+            }
+
+            if (restored > 0)
+                Debug.Log($"[LoginController] Colocaciones restauradas desde Firestore: {restored}");
         }
 
         private async Task _restoreDiaryFromFirestore(DataRepository repo)
@@ -239,6 +277,7 @@ namespace Lutra.Features.Auth
 
             await _restoreDiaryFromFirestore(repo);
             await _restoreInventoryFromFirestore(repo, profile.Id);
+            await StarCollectionStore.RestoreFromFirestoreAsync(repo, AuthManagerService.CurrentUserId);
 
             var streakManager   = ServiceLocator.Get<StreakManager>();
             bool checkedInToday = await streakManager.HasCheckedInToday();

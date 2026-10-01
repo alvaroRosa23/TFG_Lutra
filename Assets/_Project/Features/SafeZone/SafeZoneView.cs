@@ -27,6 +27,8 @@ namespace Lutra.Features.SafeZone
         [Header("Habitación")]
         [SerializeField] private PlacementPoint[]    _placementPoints;
         [SerializeField] private TextMeshProUGUI     _coinsLabel;
+        [Tooltip("Libro fijo de la habitación: abre la colección de estrellas")]
+        [SerializeField] private Button              _starBookButton;
 
         // ── Inventario (barra inferior de items sin colocar) ───────────
 
@@ -64,6 +66,9 @@ namespace Lutra.Features.SafeZone
         [SerializeField] private Button          _removeButton;
         [SerializeField] private Button          _sellButton;
         [SerializeField] private Button          _cancelRoomOptionsButton;
+        [Tooltip("Solo visible en ítems con interacción (p. ej. telescopio)")]
+        [SerializeField] private Button          _useItemButton;
+        [SerializeField] private TextMeshProUGUI _useItemButtonLabel;
 
         // ── Diálogo de confirmación de venta ───────────────────────────
 
@@ -112,6 +117,11 @@ namespace Lutra.Features.SafeZone
         /// <summary>Se dispara cuando DraggableItem suelta sobre un PlacementPoint.</summary>
         public Action<int, string>  OnDropReceived;
 
+        /// <summary>El usuario pulsa el libro de la habitación.</summary>
+        public Action               OnStarBookRequested;
+        /// <summary>El usuario pulsa "Usar" en el menú de un ítem colocado con interacción.</summary>
+        public Action               OnUseItemRequested;
+
         // ── Estado interno ─────────────────────────────────────────────
 
         private bool          _placementModeActive;
@@ -140,6 +150,8 @@ namespace Lutra.Features.SafeZone
             _cancelRoomOptionsButton?.onClick.AddListener(() => OnSellCancelled?.Invoke());
             _confirmSellButton?.onClick.AddListener(() => OnSellConfirmed?.Invoke());
             _cancelSellButton?.onClick.AddListener(() => OnSellCancelled?.Invoke());
+            _starBookButton?.onClick.AddListener(() => OnStarBookRequested?.Invoke());
+            _useItemButton?.onClick.AddListener(() => OnUseItemRequested?.Invoke());
 
             _shopTabDecorationButton?.onClick.AddListener(_onShopDecorationTabClicked);
             _shopTabAccessoryButton?.onClick.AddListener(_onShopAccessoryTabClicked);
@@ -169,6 +181,8 @@ namespace Lutra.Features.SafeZone
             _cancelRoomOptionsButton?.onClick.RemoveAllListeners();
             _confirmSellButton?.onClick.RemoveAllListeners();
             _cancelSellButton?.onClick.RemoveAllListeners();
+            _starBookButton?.onClick.RemoveAllListeners();
+            _useItemButton?.onClick.RemoveAllListeners();
             _shopTabDecorationButton?.onClick.RemoveAllListeners();
             _shopTabAccessoryButton?.onClick.RemoveAllListeners();
             _popupBackdrop?.onClick.RemoveAllListeners();
@@ -190,6 +204,8 @@ namespace Lutra.Features.SafeZone
             OnSellConfirmed          = null;
             OnSellCancelled          = null;
             OnDropReceived           = null;
+            OnStarBookRequested      = null;
+            OnUseItemRequested       = null;
         }
 
         // ── API pública ────────────────────────────────────────────────
@@ -272,7 +288,7 @@ namespace Lutra.Features.SafeZone
             foreach (var item in items)
             {
                 if (item == null) continue;
-                if (item.isUnlockedByDefault) continue;
+                if (item.isUnlockedByDefault || item.isRewardOnly) continue;
                 if (ownedIds != null && ownedIds.Contains(item.itemId)) continue;
 
                 var go   = Instantiate(_shopItemPrefab, _shopContainer, false);
@@ -322,7 +338,11 @@ namespace Lutra.Features.SafeZone
 
             if (_roomItemNameLabel != null) _roomItemNameLabel.text = item.displayName;
             if (_sellButton != null)
-                _sellButton.gameObject.SetActive(item.coinCost > 0);
+                _sellButton.gameObject.SetActive(item.CanBeSold);
+
+            bool usable = item.interaction != SafeZoneItemInteraction.None;
+            if (_useItemButton != null)      _useItemButton.gameObject.SetActive(usable);
+            if (_useItemButtonLabel != null) _useItemButtonLabel.text = item.interactionLabel;
 
             _roomItemOptionsDialog.SetActive(true);
         }
@@ -412,7 +432,7 @@ namespace Lutra.Features.SafeZone
             _selectedInventoryItem = item;
 
             if (_popupNameLabel  != null) _popupNameLabel.text = item.displayName;
-            if (_popupSellButton != null) _popupSellButton.gameObject.SetActive(item.coinCost > 0);
+            if (_popupSellButton != null) _popupSellButton.gameObject.SetActive(item.CanBeSold);
 
             _inventoryItemPopup.SetActive(true);
         }

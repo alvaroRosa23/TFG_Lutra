@@ -1,24 +1,31 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
+using Lutra.Core.Data.Models;
 using Lutra.Core.Data.ScriptableObjects;
 
 namespace Lutra.Minigames
 {
     /// <summary>
-    /// Transporte del secuenciador de Beatmaker. El reloj se basa en AudioSettings.dspTime
-    /// (no en Time.deltaTime, que acumula deriva): igual que en FL Studio, cada step (un
-    /// cuadrado del secuenciador) es una semicorchea y se programa exactamente
-    /// 60 / (bpm * 4) segundos después del anterior. 8 steps = 2 beats.
+    /// Transporte del secuenciador de Beatmaker. Igual que en FL Studio, cada step (un
+    /// cuadrado del secuenciador) es una semicorchea que dura 60 / (bpm * 4) s; 8 steps = 2 beats.
     ///
-    /// El transporte solo corre mientras el controlador lo mantiene arrancado (hay al menos
-    /// un step activo). El loop instrumental ocupa N vueltas del patrón según la duración de
-    /// su clip (redondeada) y se reinicia en el step 1 de cada N-ésima vuelta. El metrónomo
-    /// suena en cada beat (steps 1 y 5), con acento en el step 1, si está activado.
+    /// Todo el audio se programa con AudioSource.PlayScheduled sobre AudioSettings.dspTime con
+    /// un margen de anticipación (_scheduleAhead): los steps, el metrónomo y el loop suenan en el
+    /// sample exacto, sin depender de cuándo se ejecute Update (a 30 fps un frame son 33 ms, que
+    /// a más de 90 BPM ya se nota como "arrastre"). El tiempo de cada step se calcula desde el
+    /// arranque (inicio + n * duración), así que no acumula deriva.
+    ///
+    /// El loop instrumental ocupa N vueltas del patrón (N = duración del clip / duración de la
+    /// vuelta, redondeado) y se reprograma al empezar cada bloque de N vueltas. Si el clip no
+    /// dura exactamente N vueltas (loop grabado a otro tempo o mal recortado), con
+    /// _fitLoopsToTempo se ajusta su pitch para que dure justo eso: así no se desfasa respecto a
+    /// la rejilla ni se corta antes de que la línea del loop llegue al final.
     /// </summary>
     public class BeatmakerAudioEngine : MonoBehaviour
     {
-        [Header("Fuentes (si se dejan vacías se crean en Awake)")]
+        [Header("Fuentes plantilla (mixer y volumen; si se dejan vacías se crean en Awake)")]
         [FormerlySerializedAs("_beatSource")] [SerializeField] private AudioSource _stepSource;
         [SerializeField] private AudioSource _loopSource;
         [SerializeField] private AudioSource _metronomeSource;
@@ -28,7 +35,17 @@ namespace Lutra.Minigames
         [SerializeField] private AudioClip _metronomeAccentClip;
         [SerializeField, Range(0f, 1f)] private float _metronomeVolume = 0.8f;
 
-        private const int DefaultBpm = 90;
+        [Header("Programación de audio")]
+        [Tooltip("Segundos de antelación con que se programan los sonidos. Debe superar el peor frame (móvil a 30 fps ≈ 0,033 s)")]
+        [SerializeField, Range(0.04f, 0.3f)] private float _scheduleAhead = 0.1f;
+        [Tooltip("Voces simultáneas para steps y metrónomo (si se agotan se corta la cola más antigua)")]
+        [SerializeField, Range(8, 64)] private int _voiceCount = 32;
+        [Tooltip("Ajusta el pitch de cada loop para que dure exactamente sus N vueltas del patrón")]
+        [SerializeField] private bool _fitLoopsToTempo = true;
+
+        private const int    DefaultBpm        = 90;
+        private const double StartDelay        = 0.05;  // margen para programar el primer step con precisión
+        private const float  LoopFitWarning    = 0.01f; // avisa si un loop se desvía más de un 1 % del tempo
 
         /// <summary>Disparado justo cuando un step pasa a sonar (para métricas).</summary>
         public event Action<int> OnStepTriggered;
@@ -37,20 +54,31 @@ namespace Lutra.Minigames
         private BeatmakerPatternState _pattern;
         private double _secondsPerStep;
 
-        private double _cycleStartDsp;   // dspTime en que empezó (o debía empezar) el step 1 del ciclo actual
-        private int    _cycleCount;      // vueltas completas desde que arrancó el transporte (-1 antes del primer step 1)
-        private double _nextStepDspTime;
-        private int    _nextStepIndex;
         private bool   _running;
         private bool   _paused;
         private double _pauseDsp;
-        private bool   _loopWasPlaying;
+        private double _transportStartDsp; // dspTime del step 1 de la primera vuelta
+        private long   _nextStepNumber;    // siguiente step sin programar, contando desde el arranque
+
+        // Steps ya programados pendientes de sonar (para OnStepTriggered)
+        private readonly Queue<(int step, double time)> _pendingSteps = new Queue<(int, double)>();
+
+        // Voces para steps y metrónomo
+        private AudioSource[] _voices;
+        private double[]      _voiceStart;
+        private double[]      _voiceEnd;
+
+        // Loop: dos fuentes alternas para enlazar bloques sin huecos
+        private readonly AudioSource[] _loopSources = new AudioSource[2];
+        private int    _currentLoopSource;
+        private double _nextLoopBlockDsp = double.MaxValue; // inicio del próximo bloque sin programar
 
         private int  _activeLoop = -1;
         private bool _metronomeEnabled;
 
         private AudioClip _generatedClick;
         private AudioClip _generatedAccent;
+        private readonly HashSet<AudioClip> _warnedLoops = new HashSet<AudioClip>();
 
         public bool IsRunning => _running;
 
@@ -59,11 +87,10 @@ namespace Lutra.Minigames
         {
             get
             {
-                if (!_running) return 0f;
+                if (!_running || _cycleDuration <= 0.0) return 0f;
 
-                double now = _paused ? _pauseDsp : AudioSettings.dspTime;
-                double progress = (now - _cycleStartDsp) / _cycleDuration;
-                return Mathf.Clamp((float)progress, 0f, 0.9999f);
+                double cycles = _elapsed / _cycleDuration;
+                return Mathf.Clamp((float)(cycles - Math.Floor(cycles)), 0f, 0.9999f);
             }
         }
 
@@ -75,14 +102,25 @@ namespace Lutra.Minigames
         {
             get
             {
-                if (!_running || _activeLoopClip == null) return 0f;
+                var clip = _activeLoopClip;
+                if (!_running || clip == null || _cycleDuration <= 0.0) return 0f;
 
-                int cycles = _loopCycles(_activeLoopClip);
-                return Mathf.Clamp((_loopCycleIndex(cycles) + CycleProgress) / cycles, 0f, 0.9999f);
+                double blocks = _elapsed / _loopBlockDuration(clip);
+                return Mathf.Clamp((float)(blocks - Math.Floor(blocks)), 0f, 0.9999f);
             }
         }
 
         private double _cycleDuration => _secondsPerStep * BeatmakerPatternState.StepCount;
+
+        /// <summary>Segundos desde el step 1 de la primera vuelta (congelado en pausa, nunca negativo).</summary>
+        private double _elapsed
+        {
+            get
+            {
+                double now = _paused ? _pauseDsp : AudioSettings.dspTime;
+                return Math.Max(0.0, now - _transportStartDsp);
+            }
+        }
 
         // ── Unity lifecycle ────────────────────────────────────────────
 
@@ -91,6 +129,15 @@ namespace Lutra.Minigames
             _stepSource      = _ensureSource(_stepSource);
             _loopSource      = _ensureSource(_loopSource);
             _metronomeSource = _ensureSource(_metronomeSource);
+
+            _loopSources[0] = _loopSource;
+            _loopSources[1] = _createSourceLike(_loopSource);
+
+            _voices     = new AudioSource[_voiceCount];
+            _voiceStart = new double[_voiceCount];
+            _voiceEnd   = new double[_voiceCount];
+            for (int i = 0; i < _voiceCount; i++)
+                _voices[i] = _createSourceLike(_stepSource);
 
             if (_metronomeClip == null)
                 _metronomeClip = _generatedClick = _createClick("MetronomeClick", 1000f);
@@ -108,12 +155,23 @@ namespace Lutra.Minigames
         private void Update()
         {
             if (!_running || _paused || _pattern == null) return;
-            if (AudioSettings.dspTime < _nextStepDspTime) return;
 
-            _triggerStep(_nextStepIndex);
+            double now = AudioSettings.dspTime;
+            _notifyPlayedSteps(now);
 
-            _nextStepIndex    = (_nextStepIndex + 1) % BeatmakerPatternState.StepCount;
-            _nextStepDspTime += _secondsPerStep;
+            // Tras un parón largo (carga, frame muy lento) no se recuperan los steps perdidos:
+            // se salta al primero que aún no ha pasado para evitar una ráfaga de golpes.
+            if (_stepTime(_nextStepNumber) < now - _secondsPerStep)
+                _nextStepNumber = _firstStepAfter(now);
+
+            double horizon = now + _scheduleAhead;
+            while (_stepTime(_nextStepNumber) < horizon)
+            {
+                _scheduleStep(_nextStepNumber);
+                _nextStepNumber++;
+            }
+
+            _scheduleLoopBlocks(now, horizon);
         }
 
         // ── API pública ────────────────────────────────────────────────
@@ -121,7 +179,7 @@ namespace Lutra.Minigames
         public void Setup(BeatmakerSoundPack pack, BeatmakerPatternState pattern)
         {
             _pattern = pattern;
-            _applyPackTiming(pack);
+            _applyPack(pack);
         }
 
         /// <summary>
@@ -130,7 +188,7 @@ namespace Lutra.Minigames
         /// </summary>
         public void SetPack(BeatmakerSoundPack pack)
         {
-            _applyPackTiming(pack);
+            _applyPack(pack);
 
             if (!_running) return;
 
@@ -142,112 +200,83 @@ namespace Lutra.Minigames
         /// <summary>Arranca el patrón desde el step 1.</summary>
         public void StartTransport()
         {
-            _stopLoopSource();
+            _cancelScheduled(AudioSettings.dspTime);
 
-            double now = AudioSettings.dspTime;
-            _nextStepIndex   = 0;
-            _nextStepDspTime = now;
-            _cycleStartDsp   = now;
-            _cycleCount      = -1;
+            _transportStartDsp = AudioSettings.dspTime + StartDelay;
+            _nextStepNumber    = 0;
             _running = true;
             _paused  = false;
+
+            // El primer bloque del loop empieza con el primer step
+            _nextLoopBlockDsp = _activeLoopClip != null ? _transportStartDsp : double.MaxValue;
         }
 
         public void StopTransport()
         {
+            _cancelScheduled(AudioSettings.dspTime);
             _running = false;
             _paused  = false;
-            _stopLoopSource();
         }
 
         public void Pause()
         {
             if (!_running || _paused) return;
 
+            double now = AudioSettings.dspTime;
             _paused   = true;
-            _pauseDsp = AudioSettings.dspTime;
-            _loopWasPlaying = _loopSource != null && _loopSource.isPlaying;
-            if (_loopWasPlaying) _loopSource.Pause();
+            _pauseDsp = now;
+
+            // Lo ya programado para después de la pausa se cancela y se reprograma al reanudar
+            _cancelScheduled(now);
+            _nextStepNumber = _firstStepAfter(now);
         }
 
         public void Resume()
         {
             if (!_running || !_paused) return;
 
-            // Desplaza el reloj lo que duró la pausa: evita una ráfaga de steps "atrasados".
-            double shift = AudioSettings.dspTime - _pauseDsp;
-            _cycleStartDsp   += shift;
-            _nextStepDspTime += shift;
+            // Desplaza el reloj lo que duró la pausa: el patrón sigue donde se quedó.
+            _transportStartDsp += AudioSettings.dspTime - _pauseDsp;
             _paused = false;
 
-            if (_loopWasPlaying && _loopSource != null) _loopSource.UnPause();
+            _startLoopInCurrentBlock();
         }
 
         /// <summary>
         /// Cambia el loop activo (-1 = ninguno). Si el transporte está sonando, el nuevo loop
-        /// entra en la posición que le toca (vuelta actual dentro de sus N vueltas + posición
-        /// en el ciclo) para seguir alineado con la línea de steps.
+        /// entra en la posición que le toca dentro de su bloque de N vueltas para seguir
+        /// alineado con la línea de steps.
         /// </summary>
         public void SetActiveLoop(int loopIndex)
         {
             _activeLoop = loopIndex;
+            _stopLoopSources();
 
-            if (_activeLoop < 0 || !_running)
-            {
-                _stopLoopSource();
-                return;
-            }
+            // En pausa o parado: se programará al reanudar / arrancar.
+            if (_activeLoop < 0 || !_running || _paused) return;
 
-            // En pausa: se retomará al volver al step 1.
-            if (_paused)
-            {
-                _stopLoopSource();
-                _loopWasPlaying = false;
-                return;
-            }
-
-            var clip = _activeLoopClip;
-            if (clip == null) { _stopLoopSource(); return; }
-
-            double offset = _loopCycleIndex(_loopCycles(clip)) * _cycleDuration
-                          + (AudioSettings.dspTime - _cycleStartDsp);
-            _playLoopFrom(offset);
+            _startLoopInCurrentBlock();
         }
 
         public void SetMetronomeEnabled(bool enabled) => _metronomeEnabled = enabled;
 
-        // ── Helpers privados ───────────────────────────────────────────
+        // ── Programación de steps ──────────────────────────────────────
 
-        private void _applyPackTiming(BeatmakerSoundPack pack)
+        private double _stepTime(long stepNumber) => _transportStartDsp + stepNumber * _secondsPerStep;
+
+        /// <summary>Primer step cuyo instante es posterior a time (los anteriores ya sonaron).</summary>
+        private long _firstStepAfter(double time)
         {
-            _pack = pack;
-
-            if (pack != null && pack.bpm > 0)
-            {
-                _secondsPerStep = pack.SecondsPerStep;
-            }
-            else
-            {
-                _secondsPerStep = 60.0 / (DefaultBpm * BeatmakerSoundPack.StepsPerBeat);
-            }
+            if (time < _transportStartDsp) return 0;
+            return (long)Math.Floor((time - _transportStartDsp) / _secondsPerStep) + 1;
         }
 
-        private void _triggerStep(int step)
+        private void _scheduleStep(long stepNumber)
         {
-            if (step == 0)
-            {
-                // Vuelta al step 1: el ciclo empieza en el instante programado (no en "ahora").
-                // El loop solo se reinicia al empezar cada bloque de N vueltas, compensando el
-                // retraso de frame.
-                _cycleStartDsp = _nextStepDspTime;
-                _cycleCount++;
+            int    step = (int)(stepNumber % BeatmakerPatternState.StepCount);
+            double time = _stepTime(stepNumber);
 
-                var loopClip = _activeLoopClip;
-                if (loopClip != null && _loopCycleIndex(_loopCycles(loopClip)) == 0)
-                    _playLoopFrom(AudioSettings.dspTime - _cycleStartDsp);
-            }
-
-            if (_pack != null && _stepSource != null)
+            if (_pack != null)
             {
                 for (int track = 0; track < BeatmakerPatternState.TrackCount; track++)
                 {
@@ -255,23 +284,66 @@ namespace Lutra.Minigames
 
                     var clip = _pack.GetClip(BeatmakerPatternState.InstrumentOf(track),
                                              BeatmakerPatternState.VariationOf(track));
-                    if (clip != null) _stepSource.PlayOneShot(clip);
+                    _playVoice(clip, time, _stepSource, 1f);
                 }
             }
 
             if (_metronomeEnabled && step % BeatmakerSoundPack.StepsPerBeat == 0)
-                _playMetronome(isAccent: step == 0);
+                _playVoice(step == 0 ? _metronomeAccentClip : _metronomeClip, time, _metronomeSource, _metronomeVolume);
 
-            OnStepTriggered?.Invoke(step);
+            _pendingSteps.Enqueue((step, time));
         }
 
-        private void _playMetronome(bool isAccent)
+        private void _notifyPlayedSteps(double now)
         {
-            if (_metronomeSource == null) return;
-
-            var clip = isAccent ? _metronomeAccentClip : _metronomeClip;
-            if (clip != null) _metronomeSource.PlayOneShot(clip, _metronomeVolume);
+            while (_pendingSteps.Count > 0 && _pendingSteps.Peek().time <= now)
+                OnStepTriggered?.Invoke(_pendingSteps.Dequeue().step);
         }
+
+        /// <summary>Programa un clip en una voz libre (o roba la que antes termine).</summary>
+        private void _playVoice(AudioClip clip, double time, AudioSource template, float volumeScale)
+        {
+            if (clip == null || _voices == null) return;
+
+            double now = AudioSettings.dspTime;
+            int chosen = 0;
+            for (int i = 0; i < _voices.Length; i++)
+            {
+                // Libre = ya terminó de sonar (no basta con que termine antes de 'time':
+                // PlayScheduled sobre una fuente que suena la corta en el acto).
+                if (_voiceEnd[i] <= now) { chosen = i; break; }
+                if (_voiceEnd[i] < _voiceEnd[chosen]) chosen = i;
+            }
+
+            var voice = _voices[chosen];
+            voice.outputAudioMixerGroup = template.outputAudioMixerGroup;
+            voice.volume = template.volume * volumeScale;
+            voice.clip   = clip;
+            voice.PlayScheduled(time);
+
+            _voiceStart[chosen] = time;
+            _voiceEnd[chosen]   = time + clip.length;
+        }
+
+        /// <summary>Cancela los sonidos programados después de 'time' (los que ya suenan terminan su cola).</summary>
+        private void _cancelScheduled(double time)
+        {
+            if (_voices != null)
+            {
+                for (int i = 0; i < _voices.Length; i++)
+                {
+                    if (_voiceStart[i] <= time) continue;
+                    _voices[i].Stop();
+                    _voiceStart[i] = 0.0;
+                    _voiceEnd[i]   = 0.0;
+                }
+            }
+
+            _pendingSteps.Clear();
+            _stopLoopSources();
+        }
+
+        // ── Loop instrumental ──────────────────────────────────────────
 
         private AudioClip _activeLoopClip
         {
@@ -289,32 +361,145 @@ namespace Lutra.Minigames
             return Math.Max(1, (int)Math.Round(clip.length / _cycleDuration));
         }
 
-        /// <summary>En qué vuelta (0..cycles-1) del loop estamos, contando desde que arrancó el transporte.</summary>
-        private int _loopCycleIndex(int cycles) => Math.Max(0, _cycleCount) % cycles;
+        private double _loopBlockDuration(AudioClip clip) => _loopCycles(clip) * _cycleDuration;
 
-        private void _playLoopFrom(double offsetSeconds)
+        /// <summary>Pitch que hace durar el clip exactamente sus N vueltas (1 si no se ajusta).</summary>
+        private float _loopPitch(AudioClip clip)
         {
-            if (_loopSource == null) return;
+            if (!_fitLoopsToTempo || clip == null) return 1f;
 
-            var clip = _activeLoopClip;
-            if (clip == null) { _stopLoopSource(); return; }
-
-            _loopSource.clip = clip;
-            _loopSource.loop = true;
-            _loopSource.Play();
-            _loopSource.time = (float)(Math.Max(0.0, offsetSeconds) % clip.length);
+            float pitch = (float)(clip.length / _loopBlockDuration(clip));
+            if (Mathf.Abs(pitch - 1f) > LoopFitWarning && _warnedLoops.Add(clip))
+            {
+                double realBpm = (_pack != null ? _pack.bpm : DefaultBpm) / pitch;
+                Debug.LogWarning($"[BeatmakerAudioEngine] El loop '{clip.name}' ({clip.length:F3} s) no cuadra con " +
+                                 $"{_loopCycles(clip)} vueltas a {(_pack != null ? _pack.bpm : DefaultBpm)} BPM " +
+                                 $"(parece ir a ~{realBpm:F1} BPM). Se ajusta su pitch x{pitch:F3}; " +
+                                 "conviene reexportarlo al tempo del pack.");
+            }
+            return pitch;
         }
 
-        private void _stopLoopSource()
+        /// <summary>Arranca el loop a mitad de su bloque actual (al activarlo o al reanudar).</summary>
+        private void _startLoopInCurrentBlock()
         {
-            if (_loopSource == null) return;
-            _loopSource.Stop();
+            var clip = _activeLoopClip;
+            if (clip == null) { _nextLoopBlockDsp = double.MaxValue; return; }
+
+            double start = AudioSettings.dspTime + StartDelay;
+            if (start <= _transportStartDsp)
+            {
+                // El transporte aún no ha empezado: el loop entra con el primer step
+                _nextLoopBlockDsp = _transportStartDsp;
+                return;
+            }
+
+            double blockDuration = _loopBlockDuration(clip);
+            double blockStart = _transportStartDsp
+                              + Math.Floor((start - _transportStartDsp) / blockDuration) * blockDuration;
+
+            _playLoopScheduled(clip, start, start - blockStart);
+            _nextLoopBlockDsp = blockStart + blockDuration;
+        }
+
+        /// <summary>Programa el inicio de cada bloque de N vueltas que caiga dentro del horizonte.</summary>
+        private void _scheduleLoopBlocks(double now, double horizon)
+        {
+            var clip = _activeLoopClip;
+            if (clip == null || _nextLoopBlockDsp == double.MaxValue) return;
+
+            double blockDuration = _loopBlockDuration(clip);
+            if (_nextLoopBlockDsp < now) // parón largo: se retoma en el bloque en curso
+            {
+                _startLoopInCurrentBlock();
+                return;
+            }
+
+            while (_nextLoopBlockDsp < horizon)
+            {
+                _playLoopScheduled(clip, _nextLoopBlockDsp, 0.0);
+                _nextLoopBlockDsp += blockDuration;
+            }
+        }
+
+        /// <summary>
+        /// Programa el clip en la fuente de loop libre a partir de 'offsetSeconds' (tiempo real
+        /// dentro del bloque) y hace que la fuente anterior termine justo en ese instante.
+        /// </summary>
+        private void _playLoopScheduled(AudioClip clip, double dspStart, double offsetSeconds)
+        {
+            var previous = _loopSources[_currentLoopSource];
+            _currentLoopSource = 1 - _currentLoopSource;
+            var source = _loopSources[_currentLoopSource];
+            if (source == null) return;
+
+            float pitch = _loopPitch(clip);
+            source.Stop();
+            source.clip  = clip;
+            source.loop  = !_fitLoopsToTempo; // sin ajuste, rellena si el clip es más corto que el bloque
+            source.pitch = pitch;
+            source.timeSamples = Mathf.Clamp((int)(offsetSeconds * pitch * clip.frequency), 0, clip.samples - 1);
+            source.PlayScheduled(dspStart);
+
+            if (previous != null && previous != source) previous.SetScheduledEndTime(dspStart);
+        }
+
+        private void _stopLoopSources()
+        {
+            foreach (var source in _loopSources)
+                if (source != null) source.Stop();
+
+            _nextLoopBlockDsp = double.MaxValue;
+        }
+
+        // ── Helpers privados ───────────────────────────────────────────
+
+        private void _applyPack(BeatmakerSoundPack pack)
+        {
+            _pack = pack;
+            _secondsPerStep = pack != null && pack.bpm > 0
+                ? pack.SecondsPerStep
+                : 60.0 / (DefaultBpm * BeatmakerSoundPack.StepsPerBeat);
+
+            _preload(pack);
+        }
+
+        /// <summary>
+        /// Carga los datos de todos los clips del pack al elegirlo: con "Preload Audio Data"
+        /// desactivado, el primer golpe de cada sonido llegaría tarde mientras se carga.
+        /// </summary>
+        private static void _preload(BeatmakerSoundPack pack)
+        {
+            if (pack == null) return;
+
+            foreach (BeatmakerInstrument instrument in Enum.GetValues(typeof(BeatmakerInstrument)))
+                for (int v = 0; v < BeatmakerSoundPack.VariationsPerInstrument; v++)
+                    _preload(pack.GetClip(instrument, v));
+
+            if (pack.loopClips != null)
+                foreach (var clip in pack.loopClips) _preload(clip);
+        }
+
+        private static void _preload(AudioClip clip)
+        {
+            if (clip != null && clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
         }
 
         private AudioSource _ensureSource(AudioSource source)
         {
             if (source == null) source = gameObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
+            return source;
+        }
+
+        private AudioSource _createSourceLike(AudioSource template)
+        {
+            var source = gameObject.AddComponent<AudioSource>();
+            source.playOnAwake           = false;
+            source.outputAudioMixerGroup = template.outputAudioMixerGroup;
+            source.volume                = template.volume;
+            source.priority              = template.priority;
+            source.spatialBlend          = template.spatialBlend;
             return source;
         }
 

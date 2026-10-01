@@ -129,8 +129,11 @@ namespace Lutra.Minigames
 
             if (_vignette != null)
             {
+                // Curva ease-out (no SmoothStep): el oscurecimiento se nota desde el primer
+                // instante de la inspiración en lugar de arrancar plano y parecer que llega tarde.
                 var color = _vignetteColor;
-                color.a = _vignetteMaxAlpha * eased;
+                float fade = Mathf.Clamp01(breath01);
+                color.a = _vignetteMaxAlpha * (1f - (1f - fade) * (1f - fade));
                 _vignette.color = color;
             }
 

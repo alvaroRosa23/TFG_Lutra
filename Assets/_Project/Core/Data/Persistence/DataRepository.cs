@@ -529,6 +529,94 @@ namespace Lutra.Core.Data.Persistence
         }
 
         // ══════════════════════════════════════════════════════════════
+        // COLECCIÓN DE ESTRELLAS (StarFisher)
+        // ══════════════════════════════════════════════════════════════
+
+        public async Task<List<StarCollectionEntry>> GetStarCollection()
+        {
+            try
+            {
+                return await _db.Table<StarCollectionEntry>().ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetStarCollection: {ex.Message}");
+                return new List<StarCollectionEntry>();
+            }
+        }
+
+        /// <summary>
+        /// Registra una captura: crea la fila si es la primera vez o suma una al contador.
+        /// Devuelve la fila actualizada (TimesCaught == 1 ⇒ estrella nueva).
+        /// </summary>
+        public async Task<StarCollectionEntry> RegisterStarCatch(string starId, DateTime caughtAt)
+        {
+            try
+            {
+                var entry = await _db.Table<StarCollectionEntry>()
+                    .Where(e => e.StarId == starId)
+                    .FirstOrDefaultAsync();
+
+                if (entry == null)
+                {
+                    entry = new StarCollectionEntry
+                    {
+                        StarId        = starId,
+                        TimesCaught   = 1,
+                        FirstCaughtAt = caughtAt,
+                        LastCaughtAt  = caughtAt
+                    };
+                    await _db.InsertAsync(entry);
+                }
+                else
+                {
+                    entry.TimesCaught++;
+                    entry.LastCaughtAt = caughtAt;
+                    await _db.UpdateAsync(entry);
+                }
+
+                return entry;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] RegisterStarCatch: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Fusiona una fila restaurada desde Firestore con la local: se queda con el mayor
+        /// contador, la primera captura más antigua y la última más reciente.
+        /// </summary>
+        public async Task MergeStarCollectionEntry(StarCollectionEntry remote)
+        {
+            try
+            {
+                if (remote == null || string.IsNullOrEmpty(remote.StarId)) return;
+
+                var local = await _db.Table<StarCollectionEntry>()
+                    .Where(e => e.StarId == remote.StarId)
+                    .FirstOrDefaultAsync();
+
+                if (local == null)
+                {
+                    remote.Id = 0;
+                    await _db.InsertAsync(remote);
+                    return;
+                }
+
+                local.TimesCaught   = Math.Max(local.TimesCaught, remote.TimesCaught);
+                local.FirstCaughtAt = remote.FirstCaughtAt < local.FirstCaughtAt ? remote.FirstCaughtAt : local.FirstCaughtAt;
+                local.LastCaughtAt  = remote.LastCaughtAt  > local.LastCaughtAt  ? remote.LastCaughtAt  : local.LastCaughtAt;
+                await _db.UpdateAsync(local);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] MergeStarCollectionEntry: {ex.Message}");
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
         // ADMINISTRACIÓN
         // ══════════════════════════════════════════════════════════════
 
@@ -541,6 +629,7 @@ namespace Lutra.Core.Data.Persistence
                 await _db.DeleteAllAsync<DiaryEntry>();
                 await _db.DeleteAllAsync<UserProfile>();
                 await _db.DeleteAllAsync<InventoryItem>();
+                await _db.DeleteAllAsync<StarCollectionEntry>();
             }
             catch (Exception ex)
             {
