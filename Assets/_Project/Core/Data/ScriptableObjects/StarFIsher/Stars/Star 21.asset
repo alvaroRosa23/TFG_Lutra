@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 21
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 22
-  displayName: 
+  displayName: Perla
   rarity: 2
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 0.6 masas solares
+  age: "9000M a\xF1os"
+  description: "Perla fue una vez una estrella grande, pero pas\xF3 una \xE9poca
+    muy dura en la que perdi\xF3 todas sus capas exteriores. Lo que qued\xF3 fue
+    su n\xFAcleo."
+  phrase: "Aunque sientas que lo has perdido todo, hay una parte esencial de ti que
+    permanece. Desde ah\xED siempre se puede volver a empezar."

@@ -140,14 +140,19 @@ namespace Lutra.Minigames
                 // Récord previo: se consulta ANTES de guardar para poder comparar
                 float? previousBest = await repo.GetBestRelaxationScore(result.Type);
 
+                // Ánimo previo: el dato más reciente antes de empezar (no se pregunta al usuario)
+                var moodBefore = await repo.GetLatestMood(result.StartTime);
+
                 // Construir y persistir sesión
                 var session = new MinigameSession(result.Type, result.EmotionBefore)
                 {
-                    StartTime       = result.StartTime,
-                    DurationSeconds = result.DurationSeconds,
-                    EmotionAfter    = result.EmotionAfter,
-                    RelaxationScore = result.RelaxationScore,
-                    Metrics         = result.Metrics
+                    StartTime            = result.StartTime,
+                    DurationSeconds      = result.DurationSeconds,
+                    EmotionAfter         = result.EmotionAfter,
+                    RelaxationScore      = result.RelaxationScore,
+                    Metrics              = result.Metrics,
+                    MoodBefore           = moodBefore?.mood,
+                    MoodBeforeRecordedAt = moodBefore?.recordedAt
                 };
 
                 await repo.SaveMinigameSession(session);
@@ -168,12 +173,24 @@ namespace Lutra.Minigames
                 LastOutcome = new MinigameOutcome
                 {
                     Session           = session,
-                    DisplayName       = GetDefinition(result.Type)?.displayName ?? result.Type.ToString(),
+                    DisplayName       = GetDefinition(result.Type)?.displayName ?? result.Type.ToDisplayName(),
                     PreviousBestScore = previousBest,
                     IsNewRecord       = newScore > 0 &&
                                         (!previousBest.HasValue || newScore > MinigameOutcome.ToDisplayScore(previousBest.Value)),
                     CoinsEarned       = coinReward
                 };
+
+                if (coinReward > 0)
+                {
+                    EventBus.EmitRewardGranted(new RewardGrant
+                    {
+                        Source    = RewardSource.Minigame,
+                        Coins     = coinReward,
+                        Title     = $"{LastOutcome.DisplayName} completado",
+                        Body      = LastOutcome.IsNewRecord ? $"+{coinReward} monedas · ¡Nuevo récord!" : $"+{coinReward} monedas",
+                        SourceRef = result.Type.ToString()
+                    });
+                }
 
                 // Descargar escena del minijuego
                 await UnloadCurrentMinigame();

@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 1.1
-  age: 900M
+  weight: 1.1 masas solares
+  age: "900M a\xF1os"
   description: "Leo vive detr\xE1s de una cortina de polvo que la esconde del resto
     del universo. Algunos d\xEDas se siente invisible y piensa que nadie sabe que
     existe, pero detr\xE1s del polvo sigue brillando igual."
-  phrase: "\"Tu valor no depende de que los dem\xE1s lo noten\""
+  phrase: "Tu valor no depende de que los dem\xE1s lo noten."

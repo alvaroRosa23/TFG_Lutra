@@ -61,18 +61,28 @@ namespace Lutra.UI.Screens
         [Header("Navegación")]
         [SerializeField] private Button _settingsButton;
 
-        [Header("Debug / Dev")]
-        [SerializeField] private Button _logoutButton;
+        [Header("Centro de notificaciones")]
+        [SerializeField] private Button     _notificationsButton;
+        [Tooltip("Indicador \"!\" sobre el botón; visible si hay notificaciones nuevas o un aviso importante pendiente.")]
+        [SerializeField] private GameObject _notificationsBadge;
+
+        [Header("Cerrar sesión")]
+        [SerializeField] private Button     _logoutButton;
+        [SerializeField] private GameObject _logoutConfirmPanel;
+        [SerializeField] private Button     _logoutConfirmButton;
+        [SerializeField] private Button     _logoutCancelButton;
 
         // ── Servicios (lazy) ───────────────────────────────────────────
 
-        private DataRepository _dataRepository;
-        private StreakManager  _streakManager;
-        private ThemeManager   _themeManager;
+        private DataRepository     _dataRepository;
+        private StreakManager      _streakManager;
+        private ThemeManager       _themeManager;
+        private NotificationCenter _notificationCenter;
 
         private DataRepository Repository          => _dataRepository ??= ServiceLocator.Get<DataRepository>();
         private StreakManager  StreakManagerService => _streakManager  ??= ServiceLocator.Get<StreakManager>();
         private ThemeManager   ThemeManagerService => _themeManager   ??= ServiceLocator.Get<ThemeManager>();
+        private NotificationCenter Notifications   => _notificationCenter ??= ServiceLocator.Get<NotificationCenter>();
 
         // ── Guard anti-bucle para ApplyTheme ──────────────────────────
 
@@ -99,7 +109,12 @@ namespace Lutra.UI.Screens
                 _btnMomento.onClick.AddListener(_onMomentoSelected);
 
             _settingsButton?.onClick.AddListener(_onSettingsClicked);
+            _notificationsButton?.onClick.AddListener(_onNotificationsClicked);
             _logoutButton?.onClick.AddListener(_onLogoutClicked);
+            _logoutConfirmButton?.onClick.AddListener(_onLogoutConfirmed);
+            _logoutCancelButton?.onClick.AddListener(_hideLogoutConfirm);
+
+            _hideLogoutConfirm();
         }
 
         // ── UIScreen overrides ─────────────────────────────────────────
@@ -109,7 +124,25 @@ namespace Lutra.UI.Screens
 
         public override void OnScreenFocused()
         {
+            _hideLogoutConfirm();
             _ = _safeOnScreenFocused();
+            _ = _safeRefreshNotifications();
+        }
+
+        /// <summary>
+        /// Publica el resumen semanal y el aviso del WHO-5 si tocan, y actualiza la "!" del botón
+        /// de notificaciones.
+        /// </summary>
+        private async Task _safeRefreshNotifications()
+        {
+            try
+            {
+                await Notifications.CheckWeeklySummary();
+                await Who5Scheduler.CheckAvailability();
+                _setNotificationsBadge(await Notifications.NeedsAttention());
+            }
+            catch (Exception ex)
+            { Debug.LogError($"[MainMenuScreen] _safeRefreshNotifications: {ex.Message}"); }
         }
 
         private async Task _safeOnScreenFocused()
@@ -148,6 +181,7 @@ namespace Lutra.UI.Screens
             EventBus.OnStreakUpdated         += _onStreakUpdated;
             EventBus.OnCurrentEmotionChanged += _onCurrentEmotionChanged;
             EventBus.OnEmotionModalRequested += OpenDayMomentPanel;
+            EventBus.OnNotificationsChanged  += _setNotificationsBadge;
         }
 
         private void OnDisable()
@@ -155,6 +189,7 @@ namespace Lutra.UI.Screens
             EventBus.OnStreakUpdated         -= _onStreakUpdated;
             EventBus.OnCurrentEmotionChanged -= _onCurrentEmotionChanged;
             EventBus.OnEmotionModalRequested -= OpenDayMomentPanel;
+            EventBus.OnNotificationsChanged  -= _setNotificationsBadge;
         }
 
         // ── Métodos privados ───────────────────────────────────────────
@@ -410,10 +445,46 @@ namespace Lutra.UI.Screens
         private void _onSettingsClicked()
             => AppStateMachine.Instance.TransitionTo(AppState.Settings);
 
+        // ── Centro de notificaciones ───────────────────────────────────
+
+        private void _onNotificationsClicked()
+            => AppStateMachine.Instance.TransitionTo(AppState.Notifications);
+
+        private void _setNotificationsBadge(bool needsAttention)
+        {
+            if (_notificationsBadge != null)
+                _notificationsBadge.SetActive(needsAttention);
+        }
+
         // ── Logout / borrado de sesión ─────────────────────────────────
 
+        /// <summary>Pide confirmación antes de cerrar sesión.</summary>
         private void _onLogoutClicked()
-            => _ = _safeLogout();
+        {
+            if (_logoutConfirmPanel == null)
+            {
+                Debug.LogWarning("[MainMenuScreen] _logoutConfirmPanel no asignado: se cierra sesión sin confirmar.");
+                _ = _safeLogout();
+                return;
+            }
+
+            _logoutConfirmPanel.SetActive(true);
+            EventBus.EmitNavBarVisibilityRequested(false);
+        }
+
+        private void _onLogoutConfirmed()
+        {
+            _hideLogoutConfirm();
+            _ = _safeLogout();
+        }
+
+        private void _hideLogoutConfirm()
+        {
+            if (_logoutConfirmPanel == null || !_logoutConfirmPanel.activeSelf) return;
+
+            _logoutConfirmPanel.SetActive(false);
+            EventBus.EmitNavBarVisibilityRequested(true);
+        }
 
         private async Task _safeLogout()
         {
@@ -430,7 +501,10 @@ namespace Lutra.UI.Screens
         private void OnDestroy()
         {
             _settingsButton?.onClick.RemoveAllListeners();
+            _notificationsButton?.onClick.RemoveListener(_onNotificationsClicked);
             _logoutButton?.onClick.RemoveListener(_onLogoutClicked);
+            _logoutConfirmButton?.onClick.RemoveListener(_onLogoutConfirmed);
+            _logoutCancelButton?.onClick.RemoveListener(_hideLogoutConfirm);
             _btnDia?.onClick.RemoveAllListeners();
             _btnMomento?.onClick.RemoveAllListeners();
         }

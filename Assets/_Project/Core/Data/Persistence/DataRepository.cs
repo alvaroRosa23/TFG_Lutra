@@ -6,6 +6,7 @@ using SQLite;
 using UnityEngine;
 using Lutra.Core.Architecture;
 using Lutra.Core.Data.Models;
+using Lutra.Core.Systems;
 
 namespace Lutra.Core.Data.Persistence
 {
@@ -14,6 +15,9 @@ namespace Lutra.Core.Data.Persistence
     /// para evitar bloquear el hilo principal de Unity.
     ///
     /// Dependencia: DatabaseManager registrado en ServiceLocator antes de llamar a Initialize().
+    ///
+    /// Cada escritura se sube sola a Firestore (CloudSync.Push*). sync: false solo lo usa la
+    /// propia sincronización al guardar datos que vienen de Firestore.
     /// </summary>
     public class DataRepository : IService
     {
@@ -28,11 +32,13 @@ namespace Lutra.Core.Data.Persistence
         // EMOCIONES
         // ══════════════════════════════════════════════════════════════
 
-        public async Task SaveEmotion(EmotionRecord record)
+        public async Task SaveEmotion(EmotionRecord record, bool sync = true)
         {
             try
             {
+                if (string.IsNullOrEmpty(record.RemoteId)) record.RemoteId = CloudSync.NewRemoteId();
                 await _db.InsertAsync(record);
+                if (sync) CloudSync.PushEmotion(record);
             }
             catch (Exception ex)
             {
@@ -55,6 +61,65 @@ namespace Lutra.Core.Data.Persistence
             {
                 Debug.LogError($"[DataRepository] GetEmotionsForPeriod: {ex.Message}");
                 return new List<EmotionRecord>();
+            }
+        }
+
+        /// <summary>
+        /// Registros del usuario dentro de un rango de fechas, sin los placeholders restaurados
+        /// desde Firestore. Es la consulta que deben usar estadísticas e informes.
+        /// </summary>
+        public async Task<List<EmotionRecord>> GetUserEmotionsForPeriod(DateTime from, DateTime to)
+        {
+            try
+            {
+                return await _db.Table<EmotionRecord>()
+                    .Where(r => r.Timestamp >= from && r.Timestamp <= to && r.Source == RecordSource.User)
+                    .OrderByDescending(r => r.Timestamp)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetUserEmotionsForPeriod: {ex.Message}");
+                return new List<EmotionRecord>();
+            }
+        }
+
+        /// <summary>
+        /// Dato de ánimo (1-5) más reciente anterior a <paramref name="before"/>: el último check-in
+        /// del usuario o la última valoración post-partida, el que sea más reciente. null si no hay ninguno.
+        /// Se usa como ánimo previo de un minijuego (no se pregunta al empezar).
+        /// </summary>
+        public async Task<(int mood, DateTime recordedAt)?> GetLatestMood(DateTime before)
+        {
+            try
+            {
+                var record = await _db.Table<EmotionRecord>()
+                    .Where(r => r.Source == RecordSource.User && r.MoodLevel > 0 && r.Timestamp <= before)
+                    .OrderByDescending(r => r.Timestamp)
+                    .FirstOrDefaultAsync();
+
+                var session = await _db.Table<MinigameSession>()
+                    .Where(s => s.MoodAfter != null && s.StartTime <= before)
+                    .OrderByDescending(s => s.StartTime)
+                    .FirstOrDefaultAsync();
+
+                // La valoración post-partida se hace al terminar: su momento es inicio + duración
+                DateTime? sessionAt = session != null
+                    ? session.StartTime.AddSeconds(session.DurationSeconds)
+                    : (DateTime?)null;
+
+                if (session != null && (record == null || sessionAt.Value > record.Timestamp))
+                    return (session.MoodAfter.Value, sessionAt.Value);
+
+                if (record != null)
+                    return (record.MoodLevel, record.Timestamp);
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetLatestMood: {ex.Message}");
+                return null;
             }
         }
 
@@ -107,15 +172,43 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        public async Task UpdateEmotion(EmotionRecord record)
+        public async Task UpdateEmotion(EmotionRecord record, bool sync = true)
         {
             try
             {
+                if (string.IsNullOrEmpty(record.RemoteId)) record.RemoteId = CloudSync.NewRemoteId();
                 await _db.UpdateAsync(record);
+                if (sync) CloudSync.PushEmotion(record);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[DataRepository] UpdateEmotion: {ex.Message}");
+            }
+        }
+
+        public async Task<List<EmotionRecord>> GetAllEmotions()
+        {
+            try
+            {
+                return await _db.Table<EmotionRecord>().ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetAllEmotions: {ex.Message}");
+                return new List<EmotionRecord>();
+            }
+        }
+
+        /// <summary>Borra un registro solo en local (lo usa la sincronización para los placeholders).</summary>
+        public async Task DeleteEmotion(EmotionRecord record)
+        {
+            try
+            {
+                await _db.DeleteAsync(record);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] DeleteEmotion: {ex.Message}");
             }
         }
 
@@ -170,19 +263,58 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        public async Task SaveDiaryEntry(DiaryEntry entry)
+        public async Task SaveDiaryEntry(DiaryEntry entry, bool sync = true)
         {
             try
             {
+                if (string.IsNullOrEmpty(entry.RemoteId)) entry.RemoteId = CloudSync.NewRemoteId();
+
                 if (entry.Id == 0)
                     await _db.InsertAsync(entry);
                 else
                     await _db.UpdateAsync(entry);
+
+                if (sync) CloudSync.PushDiaryEntry(entry);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[DataRepository] SaveDiaryEntry: {ex.Message}");
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Borra la entrada en SQLite y (con sync) en Firestore, donde queda un marcador de borrado
+        /// para que la reconciliación de otros dispositivos también la elimine.
+        /// </summary>
+        public async Task DeleteDiaryEntry(DiaryEntry entry, bool sync = true)
+        {
+            try
+            {
+                await _db.DeleteAsync<DiaryEntry>(entry.Id);
+                if (sync && !string.IsNullOrEmpty(entry.RemoteId)) CloudSync.PushDiaryDelete(entry.RemoteId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] DeleteDiaryEntry: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>Entradas del diario dentro del rango, más antiguas primero (estadísticas e informe).</summary>
+        public async Task<List<DiaryEntry>> GetDiaryEntriesForPeriod(DateTime from, DateTime to)
+        {
+            try
+            {
+                return await _db.Table<DiaryEntry>()
+                    .Where(e => e.Date >= from && e.Date <= to)
+                    .OrderBy(e => e.Date)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetDiaryEntriesForPeriod: {ex.Message}");
+                return new List<DiaryEntry>();
             }
         }
 
@@ -252,16 +384,31 @@ namespace Lutra.Core.Data.Persistence
         // MINIJUEGOS
         // ══════════════════════════════════════════════════════════════
 
-        public async Task SaveMinigameSession(MinigameSession session)
+        public async Task SaveMinigameSession(MinigameSession session, bool sync = true)
         {
             try
             {
+                if (string.IsNullOrEmpty(session.RemoteId)) session.RemoteId = CloudSync.NewRemoteId();
                 await _db.InsertAsync(session);
+                if (sync) CloudSync.PushMinigameSession(session);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[DataRepository] SaveMinigameSession: {ex.Message}");
                 throw;
+            }
+        }
+
+        public async Task<List<MinigameSession>> GetAllMinigameSessions()
+        {
+            try
+            {
+                return await _db.Table<MinigameSession>().ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetAllMinigameSessions: {ex.Message}");
+                return new List<MinigameSession>();
             }
         }
 
@@ -281,12 +428,31 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        /// <summary>Actualiza una sesión ya guardada (p.ej. la emoción post-juego).</summary>
-        public async Task UpdateMinigameSession(MinigameSession session)
+        /// <summary>Partidas de todos los minijuegos que empezaron dentro del rango, más recientes primero.</summary>
+        public async Task<List<MinigameSession>> GetSessionsForPeriod(DateTime from, DateTime to)
         {
             try
             {
+                return await _db.Table<MinigameSession>()
+                    .Where(s => s.StartTime >= from && s.StartTime <= to)
+                    .OrderByDescending(s => s.StartTime)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetSessionsForPeriod: {ex.Message}");
+                return new List<MinigameSession>();
+            }
+        }
+
+        /// <summary>Actualiza una sesión ya guardada (p.ej. la emoción o el ánimo post-juego).</summary>
+        public async Task UpdateMinigameSession(MinigameSession session, bool sync = true)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(session.RemoteId)) session.RemoteId = CloudSync.NewRemoteId();
                 await _db.UpdateAsync(session);
+                if (sync) CloudSync.PushMinigameSession(session);
             }
             catch (Exception ex)
             {
@@ -357,14 +523,26 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        public async Task SaveUserProfile(UserProfile profile)
+        /// <summary>
+        /// Guarda el perfil. Al actualizar se conservan las monedas de la BD: solo cambian con
+        /// AddCoins/SpendCoins/SetCoins, así un perfil leído antes de sumar monedas no las pisa.
+        /// </summary>
+        public async Task SaveUserProfile(UserProfile profile, bool sync = true)
         {
             try
             {
                 if (profile.Id == 0)
+                {
                     await _db.InsertAsync(profile);
+                }
                 else
+                {
+                    var current = await _db.Table<UserProfile>().Where(p => p.Id == profile.Id).FirstOrDefaultAsync();
+                    if (current != null) profile.Coins = current.Coins;
                     await _db.UpdateAsync(profile);
+                }
+
+                if (sync) CloudSync.PushProfile(profile);
             }
             catch (Exception ex)
             {
@@ -388,6 +566,8 @@ namespace Lutra.Core.Data.Persistence
 
                 if (rows == 0)
                     Debug.LogWarning("[DataRepository] AddCoins: no existe perfil de usuario.");
+                else
+                    CloudSync.PushCoinsDelta(amount);
             }
             catch (Exception ex)
             {
@@ -412,12 +592,29 @@ namespace Lutra.Core.Data.Persistence
                     "UPDATE UserProfiles SET Coins = Coins - ? WHERE Id = ? AND Coins >= ?",
                     amount, profile.Id, amount);
 
+                if (rows > 0) CloudSync.PushCoinsDelta(-amount);
                 return rows > 0;
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[DataRepository] SpendCoins: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>Fija el saldo sin subirlo (lo usa la sincronización con el saldo de Firestore).</summary>
+        public async Task SetCoins(int coins)
+        {
+            try
+            {
+                await _db.ExecuteAsync(
+                    "UPDATE UserProfiles SET Coins = ? WHERE Id = (SELECT Id FROM UserProfiles LIMIT 1)",
+                    coins);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] SetCoins: {ex.Message}");
+                throw;
             }
         }
 
@@ -456,7 +653,7 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        public async Task UnlockItem(int userId, string itemId)
+        public async Task UnlockItem(int userId, string itemId, bool sync = true)
         {
             try
             {
@@ -464,6 +661,7 @@ namespace Lutra.Core.Data.Persistence
                 if (already) return;
 
                 await _db.InsertAsync(new InventoryItem(userId, itemId));
+                if (sync) CloudSync.PushInventoryAdd(itemId);
             }
             catch (Exception ex)
             {
@@ -488,7 +686,7 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        public async Task SetItemPlacement(int userId, string itemId, bool isPlaced, int placementIndex)
+        public async Task SetItemPlacement(int userId, string itemId, bool isPlaced, int placementIndex, bool sync = true)
         {
             try
             {
@@ -502,6 +700,7 @@ namespace Lutra.Core.Data.Persistence
                 row.IsPlaced       = isPlaced;
                 row.PlacementIndex = isPlaced ? placementIndex : -1;
                 await _db.UpdateAsync(row);
+                if (sync) CloudSync.PushPlacement(itemId, row.PlacementIndex);
             }
             catch (Exception ex)
             {
@@ -510,7 +709,7 @@ namespace Lutra.Core.Data.Persistence
             }
         }
 
-        public async Task RemoveItem(int userId, string itemId)
+        public async Task RemoveItem(int userId, string itemId, bool sync = true)
         {
             try
             {
@@ -520,6 +719,8 @@ namespace Lutra.Core.Data.Persistence
 
                 foreach (var row in rows)
                     await _db.DeleteAsync(row);
+
+                if (sync && rows.Count > 0) CloudSync.PushInventoryRemove(itemId);
             }
             catch (Exception ex)
             {
@@ -575,6 +776,7 @@ namespace Lutra.Core.Data.Persistence
                     await _db.UpdateAsync(entry);
                 }
 
+                CloudSync.PushStar(entry);
                 return entry;
             }
             catch (Exception ex)
@@ -617,6 +819,247 @@ namespace Lutra.Core.Data.Persistence
         }
 
         // ══════════════════════════════════════════════════════════════
+        // NOTIFICACIONES (centro de notificaciones)
+        // ══════════════════════════════════════════════════════════════
+
+        public async Task SaveNotification(AppNotification notification, bool sync = true)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(notification.RemoteId)) notification.RemoteId = CloudSync.NewRemoteId();
+                await _db.InsertAsync(notification);
+                if (sync) CloudSync.PushNotification(notification);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] SaveNotification: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task UpdateNotification(AppNotification notification, bool sync = true)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(notification.RemoteId)) notification.RemoteId = CloudSync.NewRemoteId();
+                await _db.UpdateAsync(notification);
+                if (sync) CloudSync.PushNotification(notification);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] UpdateNotification: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>Notificación por id remoto (para las de id determinista); null si no existe.</summary>
+        public async Task<AppNotification> GetNotificationByRemoteId(string remoteId)
+        {
+            try
+            {
+                return await _db.Table<AppNotification>()
+                    .Where(n => n.RemoteId == remoteId)
+                    .FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetNotificationByRemoteId: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Última notificación del tipo indicado; null si no hay ninguna.</summary>
+        public async Task<AppNotification> GetLastNotificationOfType(NotificationType type)
+        {
+            try
+            {
+                return await _db.Table<AppNotification>()
+                    .Where(n => n.Type == type)
+                    .OrderByDescending(n => n.CreatedAt)
+                    .FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetLastNotificationOfType: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Notificaciones del tipo indicado dentro del rango, más antiguas primero (p. ej. activaciones de apoyo para el informe).</summary>
+        public async Task<List<AppNotification>> GetNotificationsOfTypeForPeriod(NotificationType type, DateTime from, DateTime to)
+        {
+            try
+            {
+                return await _db.Table<AppNotification>()
+                    .Where(n => n.Type == type && n.CreatedAt >= from && n.CreatedAt <= to)
+                    .OrderBy(n => n.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetNotificationsOfTypeForPeriod: {ex.Message}");
+                return new List<AppNotification>();
+            }
+        }
+
+        /// <summary>Todas las notificaciones, incluidas las resueltas (para la sincronización).</summary>
+        public async Task<List<AppNotification>> GetAllNotifications()
+        {
+            try
+            {
+                return await _db.Table<AppNotification>().ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetAllNotifications: {ex.Message}");
+                return new List<AppNotification>();
+            }
+        }
+
+        /// <summary>Ancladas pendientes (sección "Importante"), más recientes primero.</summary>
+        public async Task<List<AppNotification>> GetPinnedNotifications()
+        {
+            try
+            {
+                return await _db.Table<AppNotification>()
+                    .Where(n => n.IsPinned && n.ResolvedAt == null)
+                    .OrderByDescending(n => n.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetPinnedNotifications: {ex.Message}");
+                return new List<AppNotification>();
+            }
+        }
+
+        /// <summary>Página de notificaciones no ancladas, más recientes primero.</summary>
+        public async Task<List<AppNotification>> GetNotificationsPage(int offset, int count)
+        {
+            try
+            {
+                return await _db.Table<AppNotification>()
+                    .Where(n => !n.IsPinned && n.ResolvedAt == null)
+                    .OrderByDescending(n => n.CreatedAt)
+                    .Skip(offset)
+                    .Take(count)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetNotificationsPage: {ex.Message}");
+                return new List<AppNotification>();
+            }
+        }
+
+        /// <summary>true si hay alguna anclada pendiente o alguna no anclada sin leer (la "!" del menú).</summary>
+        public async Task<bool> HasNotificationsNeedingAttention()
+        {
+            try
+            {
+                int count = await _db.Table<AppNotification>()
+                    .Where(n => n.ResolvedAt == null && (n.IsPinned || !n.IsRead))
+                    .CountAsync();
+                return count > 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] HasNotificationsNeedingAttention: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>Marca como leídas todas las no ancladas. Las ancladas siguen pendientes hasta resolverse.</summary>
+        public async Task MarkAllNotificationsRead()
+        {
+            try
+            {
+                var unread = await _db.Table<AppNotification>()
+                    .Where(n => !n.IsPinned && !n.IsRead)
+                    .ToListAsync();
+
+                foreach (var notification in unread)
+                {
+                    notification.IsRead = true;
+                    await _db.UpdateAsync(notification);
+                    CloudSync.PushNotification(notification);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] MarkAllNotificationsRead: {ex.Message}");
+                throw;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ESCALAS VALIDADAS (WHO-5)
+        // ══════════════════════════════════════════════════════════════
+
+        public async Task SaveScaleResponse(ScaleResponse response, bool sync = true)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(response.RemoteId)) response.RemoteId = CloudSync.NewRemoteId();
+                await _db.InsertAsync(response);
+                if (sync) CloudSync.PushScaleResponse(response);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] SaveScaleResponse: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>Último envío de la escala; null si nunca se ha respondido.</summary>
+        public async Task<ScaleResponse> GetLastScaleResponse(ScaleType scale)
+        {
+            try
+            {
+                return await _db.Table<ScaleResponse>()
+                    .Where(r => r.Scale == scale)
+                    .OrderByDescending(r => r.CompletedAt)
+                    .FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetLastScaleResponse: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Envíos de la escala dentro del rango, más antiguos primero (para gráficos e informe).</summary>
+        public async Task<List<ScaleResponse>> GetScaleResponsesForPeriod(ScaleType scale, DateTime from, DateTime to)
+        {
+            try
+            {
+                return await _db.Table<ScaleResponse>()
+                    .Where(r => r.Scale == scale && r.CompletedAt >= from && r.CompletedAt <= to)
+                    .OrderBy(r => r.CompletedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetScaleResponsesForPeriod: {ex.Message}");
+                return new List<ScaleResponse>();
+            }
+        }
+
+        /// <summary>Todos los envíos de todas las escalas (para la sincronización).</summary>
+        public async Task<List<ScaleResponse>> GetAllScaleResponses()
+        {
+            try
+            {
+                return await _db.Table<ScaleResponse>().ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DataRepository] GetAllScaleResponses: {ex.Message}");
+                return new List<ScaleResponse>();
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
         // ADMINISTRACIÓN
         // ══════════════════════════════════════════════════════════════
 
@@ -630,6 +1073,8 @@ namespace Lutra.Core.Data.Persistence
                 await _db.DeleteAllAsync<UserProfile>();
                 await _db.DeleteAllAsync<InventoryItem>();
                 await _db.DeleteAllAsync<StarCollectionEntry>();
+                await _db.DeleteAllAsync<AppNotification>();
+                await _db.DeleteAllAsync<ScaleResponse>();
             }
             catch (Exception ex)
             {

@@ -18,11 +18,10 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.4
-  age: 3000M
+  weight: 0.4 masas solares
+  age: "3000M a\xF1os"
   description: "Brasa tiene genio. A veces algo le remueve por dentro y suelta una
     llamarada que ilumina medio sistema. Luego se queda callada y un poco avergonzada.
     Lo que nadie sabe es que, despu\xE9s de cada estallido, Brasa siempre vuelve
     a su luz tranquila de siempre. Est\xE1 aprendiendo a escucharse antes de explotar."
-  phrase: "\"Lo importante de enfadarse en ver qu\xE9 hay detr\xE1s del fuego sin
-    castigarte\""
+  phrase: "Lo importante de enfadarse en ver qu\xE9 hay detr\xE1s del fuego sin castigarte."

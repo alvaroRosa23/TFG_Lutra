@@ -174,8 +174,28 @@ namespace Lutra.Core.Systems
 
             EventBus.EmitRewardEarned(reward.rewardId, reward.type);
             EventBus.EmitRewardUnlocked(reward);
+            EventBus.EmitRewardGranted(new RewardGrant
+            {
+                Source    = RewardSource.RewardDefinition,
+                Coins     = reward.coinValue,
+                ItemId    = string.IsNullOrEmpty(reward.itemId) ? null : reward.itemId,
+                Title     = string.IsNullOrEmpty(reward.displayName) ? "¡Nueva recompensa!" : reward.displayName,
+                Body      = _rewardBody(reward),
+                SourceRef = reward.rewardId
+            });
 
             Debug.Log($"[RewardSystem] Recompensa otorgada: {reward.displayName} ({reward.rewardId})");
+        }
+
+        /// <summary>Texto de la notificación: monedas y/o ítem para la Zona Segura.</summary>
+        private static string _rewardBody(RewardDefinition reward)
+        {
+            bool hasCoins = reward.coinValue > 0;
+            bool hasItem  = !string.IsNullOrEmpty(reward.itemId);
+
+            if (hasCoins && hasItem) return $"+{reward.coinValue} monedas y un objeto nuevo para tu Zona Segura";
+            if (hasItem)             return "Un objeto nuevo para tu Zona Segura";
+            return $"+{reward.coinValue} monedas";
         }
 
         private void _onEmotionRegistered(EmotionRecord record)

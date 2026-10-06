@@ -168,7 +168,7 @@ namespace Lutra.Core.Systems
         }
 
         /// <summary>
-        /// Actualiza los datos de perfil en SQLite y en Firestore.
+        /// Actualiza los datos de perfil en SQLite (DataRepository lo sube a Firestore).
         /// Usa el patrón fire-and-forget: los errores se registran en el log sin propagarse.
         /// </summary>
         public void UpdateProfile(string name, string surname, DateTime dateOfBirth, string avatar)
@@ -243,9 +243,6 @@ namespace Lutra.Core.Systems
                     profile.Avatar = avatar;
 
                 await Repository.SaveUserProfile(profile);
-
-                if (Auth.IsLoggedIn)
-                    await Firestore.SaveUserProfile(profile);
 
                 Debug.Log("[SettingsManager] Perfil actualizado.");
             }

@@ -2,10 +2,8 @@ using System;
 using System.Threading.Tasks;
 using UnityEngine;
 using Lutra.Core.Architecture;
-using Lutra.Core.Data.Models;
 using Lutra.Core.Data.Persistence;
 using Lutra.Core.Systems;
-using Lutra.Features.StarCollection;
 using Lutra.UI.Theme;
 
 namespace Lutra.Features.Auth
@@ -123,109 +121,15 @@ namespace Lutra.Features.Auth
             }
         }
 
-        // ── Restauración de datos ──────────────────────────────────────
-
-        private async Task _restoreInventoryFromFirestore(DataRepository repo, int userId)
-        {
-            try
-            {
-                var firestoreManager = ServiceLocator.Get<FirestoreManager>();
-                var itemIds = await firestoreManager
-                    .GetInventoryItemIds(AuthManagerService.CurrentUserId);
-
-                int restored = 0;
-                foreach (var itemId in itemIds)
-                {
-                    bool already = await repo.IsItemUnlocked(userId, itemId);
-                    if (!already)
-                    {
-                        await repo.UnlockItem(userId, itemId);
-                        restored++;
-                    }
-                }
-
-                if (restored > 0)
-                    Debug.Log($"[LoginController] Ítems de inventario restaurados desde Firestore: {restored}");
-
-                await _restorePlacementsFromFirestore(repo, userId, firestoreManager);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[LoginController] No se pudo restaurar inventario desde Firestore: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Recoloca en la habitación los ítems que estaban colocados en Firestore, sin tocar los
-        /// que ya estén colocados en local ni ocupar un punto que ya esté en uso.
-        /// </summary>
-        private async Task _restorePlacementsFromFirestore(DataRepository repo, int userId,
-                                                           FirestoreManager firestoreManager)
-        {
-            var placements = await firestoreManager.GetInventoryPlacements(AuthManagerService.CurrentUserId);
-            if (placements.Count == 0) return;
-
-            var local = await repo.GetInventoryItems(userId);
-            var usedPoints = new System.Collections.Generic.HashSet<int>();
-            foreach (var item in local)
-                if (item.IsPlaced) usedPoints.Add(item.PlacementIndex);
-
-            int restored = 0;
-            foreach (var pair in placements)
-            {
-                // Los ítems por defecto no están en inventoryItems: se desbloquean aquí si hace falta
-                var item = local.Find(i => i.ItemId == pair.Key);
-                if (item == null)
-                    await repo.UnlockItem(userId, pair.Key);
-                else if (item.IsPlaced)
-                    continue;
-
-                if (!usedPoints.Add(pair.Value)) continue;
-
-                await repo.SetItemPlacement(userId, pair.Key, true, pair.Value);
-                restored++;
-            }
-
-            if (restored > 0)
-                Debug.Log($"[LoginController] Colocaciones restauradas desde Firestore: {restored}");
-        }
-
-        private async Task _restoreDiaryFromFirestore(DataRepository repo)
-        {
-            try
-            {
-                var firestoreManager = ServiceLocator.Get<FirestoreManager>();
-                var entries = await firestoreManager
-                    .GetDiaryEntries(AuthManagerService.CurrentUserId);
-
-                int restored = 0;
-                foreach (var entry in entries)
-                {
-                    var existing = await repo.GetDiaryEntryByDate(entry.Date);
-                    if (existing == null)
-                    {
-                        await repo.SaveDiaryEntry(entry);
-                        restored++;
-                    }
-                }
-
-                if (restored > 0)
-                    Debug.Log($"[LoginController] Entradas de diario restauradas desde Firestore: {restored}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[LoginController] No se pudo restaurar diario desde Firestore: {ex.Message}");
-            }
-        }
-
         // ── Métodos privados ───────────────────────────────────────────
 
         /// <summary>
         /// Tras un login correcto decide el siguiente estado:
-        ///   - Sin perfil local → intenta restaurar desde Firestore.
+        ///   - Perfil local de otra cuenta → se borran los datos locales.
+        ///   - Sin perfil local → intenta restaurarlo desde Firestore.
         ///   - Sin perfil en ningún lado → OnboardingProfile.
-        ///   - Con perfil y check-in hecho → MainMenu.
-        ///   - Con perfil y sin check-in → EmotionCheck.
+        ///   - Con perfil → sincroniza todo con Firestore (CloudSync) y va a MainMenu si ya hizo
+        ///     el check-in de hoy (en este u otro dispositivo) o a EmotionCheck si no.
         /// </summary>
         private async Task _navigateAfterAuth()
         {
@@ -248,13 +152,12 @@ namespace Lutra.Features.Auth
                 try
                 {
                     Debug.Log("[LoginController] Sin perfil local, buscando en Firestore...");
-                    var firestoreManager = ServiceLocator.Get<FirestoreManager>();
-                    var firestoreProfile = await firestoreManager
+                    var firestoreProfile = await ServiceLocator.Get<FirestoreManager>()
                         .GetUserProfile(AuthManagerService.CurrentUserId);
 
                     if (firestoreProfile != null)
                     {
-                        await repo.SaveUserProfile(firestoreProfile);
+                        await repo.SaveUserProfile(firestoreProfile, sync: false);
                         profile = firestoreProfile;
                         Debug.Log("[LoginController] Perfil restaurado desde Firestore.");
                     }
@@ -275,96 +178,16 @@ namespace Lutra.Features.Auth
             // Aplicar paleta cultural del perfil del usuario
             ThemeManagerService.SetActiveCulture(profile.Culture);
 
-            await _restoreDiaryFromFirestore(repo);
-            await _restoreInventoryFromFirestore(repo, profile.Id);
-            await StarCollectionStore.RestoreFromFirestoreAsync(repo, AuthManagerService.CurrentUserId);
+            await CloudSync.SyncAllAsync(repo);
 
-            var streakManager   = ServiceLocator.Get<StreakManager>();
-            bool checkedInToday = await streakManager.HasCheckedInToday();
-
-            if (!checkedInToday)
-            {
-                try
-                {
-                    var lastCheckIn = await ServiceLocator
-                        .Get<FirestoreManager>()
-                        .GetLastCheckIn(AuthManagerService.CurrentUserId);
-
-                    if (lastCheckIn.date.HasValue &&
-                        lastCheckIn.date.Value.Date == DateTime.Today)
-                    {
-                        checkedInToday = true;
-                        Debug.Log("[LoginController] Check-in de hoy restaurado desde Firestore");
-
-                        ThemeManagerService.ApplyTheme(lastCheckIn.emotion);
-
-                        // Crear registro local placeholder si no existe
-                        var localRecord = await repo.GetTodayEmotion();
-                        if (localRecord == null)
-                        {
-                            var placeholderRecord = new EmotionRecord
-                            {
-                                Timestamp      = DateTime.Today.AddHours(0),
-                                EmotionType    = lastCheckIn.emotion,
-                                IntensityLevel = 3,
-                                IsMorningCheck = true,
-                                Source         = RecordSource.RestoredFirestore
-                            };
-                            await repo.SaveEmotion(placeholderRecord);
-                            Debug.Log("[LoginController] Registro placeholder creado en SQLite.");
-                        }
-
-                        var checkInHistory = await ServiceLocator
-                            .Get<FirestoreManager>()
-                            .GetCheckInHistory(AuthManagerService.CurrentUserId);
-
-                        foreach (var historyDate in checkInHistory)
-                        {
-                            if (historyDate.Date == DateTime.Today)
-                            {
-                                Debug.Log("[LoginController] Saltando hoy en historial — ya tiene placeholder con emoción correcta");
-                                continue;
-                            }
-
-                            var existing = await repo
-                                .GetEmotionsForPeriod(
-                                    historyDate,
-                                    historyDate.AddDays(1).AddSeconds(-1));
-
-                            if (existing.Count == 0)
-                            {
-                                var historyRecord = new EmotionRecord
-                                {
-                                    Timestamp      = historyDate.AddHours(12),
-                                    EmotionType    = EmotionType.Calm,
-                                    IntensityLevel = 3,
-                                    IsMorningCheck = true,
-                                    Source         = RecordSource.RestoredFirestoreHistory
-                                };
-                                await repo.SaveEmotion(historyRecord);
-                            }
-                        }
-
-                        Debug.Log($"[LoginController] Historial restaurado: {checkInHistory.Count} días desde Firestore");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[LoginController] " +
-                                     $"No se pudo consultar check-in Firestore: {ex.Message}");
-                }
-            }
-
+            bool checkedInToday = await ServiceLocator.Get<StreakManager>().HasCheckedInToday();
             if (checkedInToday)
-            {
                 Debug.Log($"[LoginController] {profile.Name} ya hizo check-in → MainMenu.");
-                AppStateMachine.Instance.TransitionTo(AppState.MainMenu);
-            }
             else
-            {
                 Debug.Log($"[LoginController] Bienvenido de nuevo, {profile.Name} → EmotionCheck.");
-                AppStateMachine.Instance.TransitionTo(AppState.EmotionCheck);
-            }
+
+            // Sin consentimiento de datos de salud pasa antes por la pantalla de consentimiento
+            await ConsentGate.ContinueTo(checkedInToday ? AppState.MainMenu : AppState.EmotionCheck);
         }
     }
 }

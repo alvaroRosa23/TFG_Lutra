@@ -22,7 +22,10 @@ namespace Lutra.Core.Architecture
         Minigames,
         MinigameActive,
         Charts,
-        Settings
+        Settings,
+        Notifications,      // centro de notificaciones (añadir siempre al final: los valores se serializan)
+        Who5,               // cuestionario de bienestar WHO-5
+        Consent             // consentimiento de datos de salud (antes del primer check-in)
     }
 
     /// <summary>

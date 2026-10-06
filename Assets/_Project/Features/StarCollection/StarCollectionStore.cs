@@ -21,7 +21,8 @@ namespace Lutra.Features.StarCollection
     }
 
     /// <summary>
-    /// Colección de estrellas de StarFisher en memoria + persistencia (SQLite y Firestore).
+    /// Colección de estrellas de StarFisher en memoria + persistencia (SQLite; DataRepository la
+    /// sube a Firestore y CloudSync la restaura al iniciar sesión).
     /// La usan el minijuego (registrar capturas), el libro de colección y el telescopio de SafeZone.
     ///
     /// Las capturas se actualizan en memoria al instante y se guardan en segundo plano, en orden
@@ -80,8 +81,8 @@ namespace Lutra.Features.StarCollection
         // ── Escritura ──────────────────────────────────────────────────
 
         /// <summary>
-        /// Registra una captura en memoria y lanza el guardado (SQLite → Firestore → telescopio
-        /// si completa la colección) sin bloquear.
+        /// Registra una captura en memoria y lanza el guardado (y el telescopio si completa la
+        /// colección) sin bloquear.
         /// </summary>
         public StarCatchRecord RegisterCatch(StarDefinition star)
         {
@@ -111,7 +112,7 @@ namespace Lutra.Features.StarCollection
 
         /// <summary>
         /// Si la colección está completa y el telescopio aún no está en el inventario, lo añade
-        /// (SQLite + Firestore) y emite la recompensa. Devuelve true si lo ha regalado ahora.
+        /// y emite la recompensa. Devuelve true si lo ha regalado ahora.
         /// </summary>
         public async Task<bool> GrantRewardIfCompleteAsync()
         {
@@ -124,29 +125,17 @@ namespace Lutra.Features.StarCollection
             if (await Repo.IsItemUnlocked(profile.Id, itemId)) return false;
 
             await Repo.UnlockItem(profile.Id, itemId);
-            await _syncToFirestore(firestore => firestore.AddInventoryItem(_userId(), itemId));
             EventBus.EmitRewardEarned(itemId, RewardType.RoomDecoration);
+            EventBus.EmitRewardGranted(new RewardGrant
+            {
+                Source = RewardSource.StarCollection,
+                ItemId = itemId,
+                Title  = "¡Colección de estrellas completa!",
+                Body   = "Has desbloqueado el telescopio para tu Zona Segura"
+            });
 
             Debug.Log("[StarCollectionStore] Colección completa: telescopio añadido al inventario");
             return true;
-        }
-
-        /// <summary>Fusiona en SQLite la colección guardada en Firestore (al iniciar sesión).</summary>
-        public static async Task RestoreFromFirestoreAsync(DataRepository repo, string firebaseUserId)
-        {
-            try
-            {
-                var remote = await ServiceLocator.Get<FirestoreManager>().GetStarCollection(firebaseUserId);
-                foreach (var entry in remote)
-                    await repo.MergeStarCollectionEntry(entry);
-
-                if (remote.Count > 0)
-                    Debug.Log($"[StarCollectionStore] Estrellas restauradas desde Firestore: {remote.Count}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[StarCollectionStore] No se pudo restaurar la colección desde Firestore: {ex.Message}");
-            }
         }
 
         // ── Helpers privados ───────────────────────────────────────────
@@ -158,29 +147,13 @@ namespace Lutra.Features.StarCollection
 
             try
             {
-                var saved = await Repo.RegisterStarCatch(starId, caughtAt);
-                await _syncToFirestore(firestore => firestore.SaveStarEntry(_userId(), saved));
+                await Repo.RegisterStarCatch(starId, caughtAt);
 
                 if (completesCollection) await GrantRewardIfCompleteAsync();
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[StarCollectionStore] Error al guardar la captura de {starId}: {ex.Message}");
-            }
-        }
-
-        private static string _userId() => ServiceLocator.Get<AuthManager>().CurrentUserId;
-
-        private static async Task _syncToFirestore(Func<FirestoreManager, Task> action)
-        {
-            try
-            {
-                if (!ServiceLocator.Get<AuthManager>().IsLoggedIn) return;
-                await action(ServiceLocator.Get<FirestoreManager>());
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[StarCollectionStore] Sync con Firestore fallido: {ex.Message}");
             }
         }
     }

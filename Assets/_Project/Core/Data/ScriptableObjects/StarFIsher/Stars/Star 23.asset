@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 23
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 24
-  displayName: 
+  displayName: Eco
   rarity: 2
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 6 masas solares
+  age: "80M a\xF1os"
+  description: "Eco pulsa con un ritmo perfecto, pero no lo hace a prop\xF3sito.
+    Eco es fiel a s\xED misma, lo que hace que otras estrellas vean su rumbo en base
+    a la seguridad que transmite."
+  phrase: Cuando eres fiel a ti, das a otros un punto de referencia.

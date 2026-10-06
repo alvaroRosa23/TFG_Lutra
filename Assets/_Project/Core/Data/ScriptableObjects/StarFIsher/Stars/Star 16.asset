@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 16
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 17
-  displayName: 
+  displayName: Lirio
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 2.1 masas solares
+  age: "400M a\xF1os"
+  description: "Lirio gira de una forma tan peculiar, que ha hecho que su forma se
+    haya achatado. Y as\xED, girando a su manera, las dem\xE1s estrellas dicen que
+    es de las estrellas m\xE1s bonitas del cielo. "
+  phrase: "Lo que te hace diferente tambi\xE9n te hace bonita, tal y como eres."

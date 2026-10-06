@@ -1,55 +1,72 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
 using System.Threading.Tasks;
 using UnityEngine;
 using Firebase.Firestore;
 using Lutra.Core.Architecture;
 using Lutra.Core.Data.Models;
-using Lutra.Core.Data.Persistence;
-using Lutra.Core.Events;
 
 namespace Lutra.Core.Systems
 {
     /// <summary>
-    /// Gestiona la persistencia remota de perfiles de usuario en Firestore.
-    /// Actúa como capa de sincronización secundaria: SQLite es la fuente local,
-    /// Firestore permite restaurar datos en dispositivos nuevos.
+    /// Estado del documento users/{uid} leído de una vez (perfil, monedas, inventario, colocaciones,
+    /// preferencias y último check-in). Los campos que no existen en Firestore quedan a null.
+    /// </summary>
+    public class RemoteUserState
+    {
+        public bool                    Exists;
+        public int                     SyncVersion;
+        public int?                    Coins;
+        public string                  PreferencesJson;
+        public string                  Avatar;
+        public HashSet<string>         InventoryItems   = new HashSet<string>();
+        public HashSet<string>         InventoryRemoved = new HashSet<string>();
+        /// <summary>null si el campo no existe (nunca se ha subido ninguna colocación).</summary>
+        public Dictionary<string, int> Placements;
+        public DateTime?               LastCheckInDate;
+        public EmotionType             LastEmotion = EmotionType.Calm;
+        public List<DateTime>          CheckInHistory = new List<DateTime>();
+    }
+
+    /// <summary>
+    /// Entradas del diario en Firestore. Las borradas quedan como marcador sin contenido
+    /// (deleted = true) para que otro dispositivo no vuelva a subir su copia local.
+    /// </summary>
+    public class RemoteDiary
+    {
+        public List<DiaryEntry> Entries    = new List<DiaryEntry>();
+        public HashSet<string>  DeletedIds = new HashSet<string>();
+    }
+
+    /// <summary>
+    /// Persistencia remota en Firestore. SQLite es la fuente local; Firestore permite restaurar
+    /// los datos en otro dispositivo. La sincronización (subidas automáticas y reconciliación al
+    /// iniciar) la coordina CloudSync; esta clase solo lee y escribe documentos.
+    ///
+    /// Estructura:
+    ///   users/{uid}                       perfil, coins, preferencesJson, avatar, inventoryItems,
+    ///                                     inventoryRemoved, inventoryPlacements, lastCheckInDate...
+    ///   users/{uid}/diary/{remoteId}      entradas del diario (las antiguas usan la fecha como id;
+    ///                                     las borradas quedan como { deleted: true, deletedAt })
+    ///   users/{uid}/emotions/{remoteId}   registros emocionales (check-ins y momentos)
+    ///   users/{uid}/minigameSessions/{remoteId}  partidas de minijuegos (récords y gráficas)
+    ///   users/{uid}/stars/{starId}        colección de estrellas de StarFisher
+    ///
+    /// Los métodos de escritura propagan las excepciones; CloudSync las registra.
     /// </summary>
     public class FirestoreManager : BaseService
     {
+        private const string PlacementsField = "inventoryPlacements";
+        private const string InventoryField  = "inventoryItems";
+        private const string RemovedField    = "inventoryRemoved";
+
+        /// <summary>Versión del formato de sincronización (2 = monedas por incrementos).</summary>
+        public const int SyncVersion = 2;
+
         private FirebaseFirestore _db;
 
-        private AuthManager _authManager;
-        private AuthManager Auth => _authManager ??= ServiceLocator.Get<AuthManager>();
-
-        // ── Unity lifecycle ────────────────────────────────────────────
-
-        // Las monedas cambian en muchos sitios (minijuegos, tienda, ventas): se suben a Firestore
-        // cada vez que alguien emite el nuevo total.
-        private void OnEnable()  => EventBus.OnCoinsChanged += _onCoinsChanged;
-        private void OnDisable() => EventBus.OnCoinsChanged -= _onCoinsChanged;
-
-        private void _onCoinsChanged(int total) => _ = _safeSaveCoins();
-
-        // Se lee el saldo de SQLite en vez de fiarse del evento (que emite 0 si no hay perfil)
-        private async Task _safeSaveCoins()
-        {
-            try
-            {
-                if (_db == null || !Auth.IsLoggedIn) return;
-
-                var profile = await ServiceLocator.Get<DataRepository>().GetUserProfile();
-                if (profile == null) return;
-                if (!string.IsNullOrEmpty(profile.FirebaseUserId) && profile.FirebaseUserId != Auth.CurrentUserId) return;
-
-                await SaveCoins(Auth.CurrentUserId, profile.Coins);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] Sync de monedas fallido: {ex.Message}");
-            }
-        }
+        public bool IsReady => _db != null;
 
         public Task<bool> InitializeAsync()
         {
@@ -66,80 +83,78 @@ namespace Lutra.Core.Systems
             }
         }
 
-        public async Task SaveUserProfile(UserProfile profile)
+        // ══════════════════════════════════════════════════════════════
+        // PERFIL
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Guarda los datos del perfil (fusionando con lo que ya haya). Las monedas solo se
+        /// escriben con includeCoins (al crear la cuenta): después cambian con IncrementCoins.
+        /// </summary>
+        public async Task SaveUserProfile(UserProfile profile, bool includeCoins = false)
         {
-            try
+            if (_db == null)
             {
-                if (_db == null)
-                {
-                    Debug.LogError("[FirestoreManager] _db es null. ¿Se llamó InitializeAsync?");
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(profile.FirebaseUserId))
-                {
-                    Debug.LogError("[FirestoreManager] FirebaseUserId está vacío. No se puede guardar.");
-                    return;
-                }
-
-                Debug.Log($"[FirestoreManager] Guardando perfil para userId: {profile.FirebaseUserId}");
-
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(profile.FirebaseUserId);
-
-                var data = new Dictionary<string, object>
-                {
-                    { "name",         profile.Name },
-                    { "surname",      profile.Surname },
-                    { "email",        profile.Email },
-                    { "dateOfBirth",  profile.DateOfBirth.ToString("yyyy-MM-dd") },
-                    { "culture",      (int)profile.Culture },
-                    { "hobbiesJson",  profile.HobbiesJson },
-                    { "coins",        profile.Coins },
-                    { "creationDate", profile.CreationDate.ToString("yyyy-MM-dd") }
-                };
-
-                await docRef.SetAsync(data, SetOptions.MergeAll);
-                Debug.Log($"[FirestoreManager] Perfil guardado correctamente en Firestore para: {profile.FirebaseUserId}");
+                Debug.LogError("[FirestoreManager] _db es null. ¿Se llamó InitializeAsync?");
+                return;
             }
-            catch (Exception ex)
+
+            if (string.IsNullOrEmpty(profile.FirebaseUserId))
             {
-                Debug.LogError($"[FirestoreManager] SaveUserProfile FAILED: {ex.Message}\n{ex.StackTrace}");
+                Debug.LogError("[FirestoreManager] FirebaseUserId está vacío. No se puede guardar.");
+                return;
             }
+
+            var data = new Dictionary<string, object>
+            {
+                { "name",            profile.Name },
+                { "surname",         profile.Surname },
+                { "email",           profile.Email },
+                { "avatar",          profile.Avatar ?? string.Empty },
+                { "dateOfBirth",     profile.DateOfBirth.ToString("yyyy-MM-dd") },
+                { "culture",         (int)profile.Culture },
+                { "hobbiesJson",     profile.HobbiesJson },
+                { "preferencesJson", profile.PreferencesJson ?? string.Empty },
+                { "creationDate",    profile.CreationDate.ToString("yyyy-MM-dd") }
+            };
+            if (includeCoins)
+            {
+                data["coins"]       = profile.Coins;
+                data["syncVersion"] = SyncVersion;
+            }
+
+            await _userDoc(profile.FirebaseUserId).SetAsync(data, SetOptions.MergeAll);
+            Debug.Log($"[FirestoreManager] Perfil guardado en Firestore para: {profile.FirebaseUserId}");
         }
 
         public async Task<UserProfile> GetUserProfile(string firebaseUserId)
         {
             try
             {
-                Debug.Log($"[FirestoreManager] Buscando perfil para userId: {firebaseUserId}");
-
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
-
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-                Debug.Log($"[FirestoreManager] Snapshot exists: {snapshot.Exists}");
+                DocumentSnapshot snapshot = await _userDoc(firebaseUserId).GetSnapshotAsync();
+                Debug.Log($"[FirestoreManager] Perfil en Firestore para {firebaseUserId}: {snapshot.Exists}");
 
                 if (!snapshot.Exists) return null;
 
                 var d = snapshot.ToDictionary();
 
-                var profile = new UserProfile
-                {
-                    FirebaseUserId = firebaseUserId,
-                    Name           = d.TryGetValue("name",         out var name)         ? name?.ToString()         : "",
-                    Surname        = d.TryGetValue("surname",       out var surname)       ? surname?.ToString()       : "",
-                    Email          = d.TryGetValue("email",         out var email)         ? email?.ToString()         : "",
-                    HobbiesJson    = d.TryGetValue("hobbiesJson",   out var hobbies)       ? hobbies?.ToString()       : "",
-                    Coins          = d.TryGetValue("coins",         out var coins)         ? Convert.ToInt32(coins)    : 0,
-                    Culture        = d.TryGetValue("culture",       out var culture)       ? (CultureType)Convert.ToInt32(culture) : default,
-                    DateOfBirth    = d.TryGetValue("dateOfBirth",   out var dob)  && DateTime.TryParse(dob?.ToString(),  out var dobParsed)  ? dobParsed  : default,
-                    CreationDate   = d.TryGetValue("creationDate",  out var created) && DateTime.TryParse(created?.ToString(), out var createdParsed) ? createdParsed : DateTime.Now,
-                };
+                // Un documento solo con inventario/monedas (sin nombre) no es un perfil completo
+                if (!d.ContainsKey("name")) return null;
 
-                return profile;
+                return new UserProfile
+                {
+                    FirebaseUserId  = firebaseUserId,
+                    Name            = _string(d, "name"),
+                    Surname         = _string(d, "surname"),
+                    Email           = _string(d, "email"),
+                    Avatar          = _string(d, "avatar"),
+                    HobbiesJson     = _string(d, "hobbiesJson"),
+                    PreferencesJson = _string(d, "preferencesJson"),
+                    Coins           = d.TryGetValue("coins", out var coins) ? Convert.ToInt32(coins) : 0,
+                    Culture         = d.TryGetValue("culture", out var culture) ? (CultureType)Convert.ToInt32(culture) : default,
+                    DateOfBirth     = DateTime.TryParse(_string(d, "dateOfBirth"), out var dob) ? dob : default,
+                    CreationDate    = DateTime.TryParse(_string(d, "creationDate"), out var created) ? created : DateTime.Now,
+                };
             }
             catch (Exception ex)
             {
@@ -148,45 +163,129 @@ namespace Lutra.Core.Systems
             }
         }
 
+        /// <summary>Lee de una vez todo el estado del documento del usuario (null si falla la lectura).</summary>
+        public async Task<RemoteUserState> GetUserState(string firebaseUserId)
+        {
+            try
+            {
+                DocumentSnapshot snapshot = await _userDoc(firebaseUserId).GetSnapshotAsync();
+                var state = new RemoteUserState { Exists = snapshot.Exists };
+                if (!snapshot.Exists) return state;
+
+                var d = snapshot.ToDictionary();
+
+                if (d.TryGetValue("coins", out var coins) && coins != null)
+                    state.Coins = Convert.ToInt32(coins);
+                state.SyncVersion = _int(d, "syncVersion");
+                if (d.ContainsKey("preferencesJson")) state.PreferencesJson = _string(d, "preferencesJson");
+                if (d.ContainsKey("avatar"))          state.Avatar          = _string(d, "avatar");
+
+                foreach (var id in _stringList(d, InventoryField)) state.InventoryItems.Add(id);
+                foreach (var id in _stringList(d, RemovedField))   state.InventoryRemoved.Add(id);
+
+                if (d.TryGetValue(PlacementsField, out var rawPlacements) && rawPlacements is Dictionary<string, object> placements)
+                {
+                    state.Placements = new Dictionary<string, int>();
+                    foreach (var pair in placements)
+                        if (int.TryParse(pair.Value?.ToString(), out int index) && index >= 0)
+                            state.Placements[pair.Key] = index;
+                }
+
+                if (DateTime.TryParse(_string(d, "lastCheckInDate"), out var lastCheckIn))
+                    state.LastCheckInDate = lastCheckIn.Date;
+                if (d.TryGetValue("lastEmotionType", out var emotion) && int.TryParse(emotion?.ToString(), out int emotionInt))
+                    state.LastEmotion = (EmotionType)emotionInt;
+
+                foreach (var raw in _stringList(d, "checkInHistory"))
+                    if (DateTime.TryParse(raw, out var date)) state.CheckInHistory.Add(date.Date);
+
+                return state;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] GetUserState: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // CHECK-IN Y EMOCIONES
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>Último check-in (para saber en otro dispositivo si ya se hizo hoy).</summary>
         public async Task SaveLastCheckIn(string firebaseUserId, DateTime date, EmotionType lastEmotion)
         {
             try
             {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
-
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-
-                var checkInDates = new List<string>();
-                if (snapshot.Exists && snapshot.ContainsField("checkInHistory"))
-                {
-                    var existing = snapshot.GetValue<List<object>>("checkInHistory");
-                    foreach (var d in existing)
-                        checkInDates.Add(d.ToString());
-                }
-
                 string dateStr = date.ToString("yyyy-MM-dd");
-                if (!checkInDates.Contains(dateStr))
-                    checkInDates.Add(dateStr);
-
-                checkInDates.Sort();
-                if (checkInDates.Count > 60)
-                    checkInDates = checkInDates.Skip(checkInDates.Count - 60).ToList();
-
-                var updates = new Dictionary<string, object>
+                await _userDoc(firebaseUserId).SetAsync(new Dictionary<string, object>
                 {
-                    { "lastCheckInDate",  dateStr },
-                    { "lastEmotionType",  (int)lastEmotion },
-                    { "checkInHistory",   checkInDates }
-                };
-
-                await docRef.UpdateAsync(updates);
-                Debug.Log($"[FirestoreManager] Check-in guardado. Historial: {checkInDates.Count} días");
+                    { "lastCheckInDate", dateStr },
+                    { "lastEmotionType", (int)lastEmotion },
+                    { "checkInHistory",  FieldValue.ArrayUnion(dateStr) }
+                }, SetOptions.MergeAll);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[FirestoreManager] SaveLastCheckIn: {ex.Message}");
+            }
+        }
+
+        public async Task SaveEmotion(string firebaseUserId, EmotionRecord record)
+        {
+            if (string.IsNullOrEmpty(record.RemoteId)) return;
+
+            await _subcollection(firebaseUserId, "emotions").Document(record.RemoteId).SetAsync(new Dictionary<string, object>
+            {
+                { "timestamp",      record.Timestamp.ToString("o") },
+                { "emotionType",    (int)record.EmotionType },
+                { "intensity",      record.IntensityLevel },
+                { "isMorningCheck", record.IsMorningCheck },
+                { "notes",          record.Notes ?? string.Empty },
+                { "moodLevel",      record.MoodLevel },
+                { "emotionTags",    record.SelectedEmotionTags ?? string.Empty },
+                { "motiveTags",     record.SelectedMotiveTags ?? string.Empty },
+                { "songTitle",      record.SongTitle ?? string.Empty },
+                { "songArtist",     record.SongArtist ?? string.Empty }
+            });
+        }
+
+        /// <summary>Todos los registros emocionales del usuario (null si falla la lectura).</summary>
+        public async Task<List<EmotionRecord>> GetEmotions(string firebaseUserId)
+        {
+            try
+            {
+                QuerySnapshot snapshot = await _subcollection(firebaseUserId, "emotions").GetSnapshotAsync();
+                var records = new List<EmotionRecord>();
+
+                foreach (DocumentSnapshot doc in snapshot.Documents)
+                {
+                    if (!doc.Exists) continue;
+                    var d = doc.ToDictionary();
+                    if (!_tryParseTimestamp(d, "timestamp", out var timestamp)) continue;
+
+                    records.Add(new EmotionRecord
+                    {
+                        RemoteId            = doc.Id,
+                        Timestamp           = timestamp,
+                        EmotionType         = (EmotionType)_int(d, "emotionType"),
+                        IntensityLevel      = _int(d, "intensity"),
+                        IsMorningCheck      = d.TryGetValue("isMorningCheck", out var morning) && morning is bool b && b,
+                        Notes               = _string(d, "notes"),
+                        MoodLevel           = _int(d, "moodLevel"),
+                        SelectedEmotionTags = _string(d, "emotionTags"),
+                        SelectedMotiveTags  = _string(d, "motiveTags"),
+                        SongTitle           = _string(d, "songTitle"),
+                        SongArtist          = _string(d, "songArtist"),
+                        Source              = RecordSource.User
+                    });
+                }
+                return records;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] GetEmotions: {ex.Message}");
+                return null;
             }
         }
 
@@ -196,137 +295,137 @@ namespace Lutra.Core.Systems
 
         public async Task SaveDiaryEntry(string firebaseUserId, DiaryEntry entry)
         {
-            try
+            if (string.IsNullOrEmpty(entry.RemoteId)) return;
+
+            await _subcollection(firebaseUserId, "diary").Document(entry.RemoteId).SetAsync(new Dictionary<string, object>
             {
-                string docId = entry.Date.Date.ToString("yyyy-MM-dd");
-
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId)
-                    .Collection("diary")
-                    .Document(docId);
-
-                var data = new Dictionary<string, object>
-                {
-                    { "date",      entry.Date.ToString("yyyy-MM-dd") },
-                    { "title",     entry.Title   ?? string.Empty },
-                    { "content",   entry.Content ?? string.Empty },
-                    { "mood",      entry.Mood    ?? string.Empty },
-                    { "timestamp", entry.Date.ToString("o") }
-                };
-
-                await docRef.SetAsync(data);
-                Debug.Log($"[FirestoreManager] Entrada de diario guardada: {docId}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] SaveDiaryEntry: {ex.Message}");
-            }
+                { "date",      entry.Date.ToString("yyyy-MM-dd") },
+                { "timestamp", entry.Date.ToString("o") },
+                { "title",     entry.Title   ?? string.Empty },
+                { "content",   entry.Content ?? string.Empty },
+                { "mood",      entry.Mood    ?? string.Empty }
+            });
         }
 
-        public async Task<List<DiaryEntry>> GetDiaryEntries(string firebaseUserId)
+        /// <summary>
+        /// Borra el contenido de la entrada en Firestore y deja solo un marcador de borrado, para
+        /// que la reconciliación de otros dispositivos la elimine en vez de volver a subirla.
+        /// </summary>
+        public async Task DeleteDiaryEntry(string firebaseUserId, string remoteId)
+        {
+            if (string.IsNullOrEmpty(remoteId)) return;
+
+            await _subcollection(firebaseUserId, "diary").Document(remoteId).SetAsync(new Dictionary<string, object>
+            {
+                { "deleted",   true },
+                { "deletedAt", DateTime.Now.ToString("o") }
+            });
+        }
+
+        /// <summary>
+        /// Todas las entradas del diario y los ids de las borradas (null si falla la lectura).
+        /// RemoteId = id del documento (en las entradas antiguas es la fecha "yyyy-MM-dd").
+        /// </summary>
+        public async Task<RemoteDiary> GetDiaryEntries(string firebaseUserId)
         {
             try
             {
-                CollectionReference colRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId)
-                    .Collection("diary");
+                QuerySnapshot snapshot = await _subcollection(firebaseUserId, "diary").GetSnapshotAsync();
+                var result = new RemoteDiary();
 
-                QuerySnapshot snapshot = await colRef.GetSnapshotAsync();
-
-                var entries = new List<DiaryEntry>();
                 foreach (DocumentSnapshot doc in snapshot.Documents)
                 {
                     if (!doc.Exists) continue;
                     var d = doc.ToDictionary();
 
-                    if (!d.TryGetValue("date", out var rawDate) ||
-                        !DateTime.TryParse(rawDate?.ToString(), out var date))
+                    if (d.TryGetValue("deleted", out var deleted) && deleted is bool isDeleted && isDeleted)
+                    {
+                        result.DeletedIds.Add(doc.Id);
+                        continue;
+                    }
+
+                    if (!_tryParseTimestamp(d, "timestamp", out var date) &&
+                        !DateTime.TryParse(_string(d, "date"), out date))
                         continue;
 
-                    entries.Add(new DiaryEntry
+                    result.Entries.Add(new DiaryEntry
                     {
-                        Date    = date.Date,
-                        Title   = d.TryGetValue("title",   out var t) ? t?.ToString() : string.Empty,
-                        Content = d.TryGetValue("content", out var c) ? c?.ToString() : string.Empty,
-                        Mood    = d.TryGetValue("mood",    out var m) ? m?.ToString() : string.Empty
+                        RemoteId = doc.Id,
+                        Date     = date,
+                        Title    = _string(d, "title"),
+                        Content  = _string(d, "content"),
+                        Mood     = _string(d, "mood")
                     });
                 }
 
-                Debug.Log($"[FirestoreManager] Entradas de diario recuperadas: {entries.Count}");
-                return entries;
+                Debug.Log($"[FirestoreManager] Entradas de diario en Firestore: {result.Entries.Count} ({result.DeletedIds.Count} borradas)");
+                return result;
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[FirestoreManager] GetDiaryEntries: {ex.Message}");
-                return new List<DiaryEntry>();
+                return null;
             }
         }
 
-        public async Task<List<DateTime>> GetCheckInHistory(string firebaseUserId)
+        // ══════════════════════════════════════════════════════════════
+        // MINIJUEGOS
+        // ══════════════════════════════════════════════════════════════
+
+        public async Task SaveMinigameSession(string firebaseUserId, MinigameSession session)
+        {
+            if (string.IsNullOrEmpty(session.RemoteId)) return;
+
+            await _subcollection(firebaseUserId, "minigameSessions").Document(session.RemoteId).SetAsync(new Dictionary<string, object>
+            {
+                { "startTime",       session.StartTime.ToString("o") },
+                { "durationSeconds", session.DurationSeconds },
+                { "minigameId",      (int)session.MinigameId },
+                { "emotionBefore",   (int)session.EmotionBefore },
+                { "emotionAfter",    (int)session.EmotionAfter },
+                { "relaxationScore", session.RelaxationScore },
+                { "metricsJson",     session.MetricsJson ?? string.Empty },
+                { "moodBefore",      session.MoodBefore },
+                { "moodBeforeAt",    session.MoodBeforeRecordedAt?.ToString("o") },
+                { "moodAfter",       session.MoodAfter }
+            });
+        }
+
+        /// <summary>Todas las partidas de minijuegos (null si falla la lectura).</summary>
+        public async Task<List<MinigameSession>> GetMinigameSessions(string firebaseUserId)
         {
             try
             {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
+                QuerySnapshot snapshot = await _subcollection(firebaseUserId, "minigameSessions").GetSnapshotAsync();
+                var sessions = new List<MinigameSession>();
 
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-
-                if (!snapshot.Exists || !snapshot.ContainsField("checkInHistory"))
-                    return new List<DateTime>();
-
-                var dates = new List<DateTime>();
-                var rawDates = snapshot.GetValue<List<object>>("checkInHistory");
-
-                foreach (var d in rawDates)
+                foreach (DocumentSnapshot doc in snapshot.Documents)
                 {
-                    if (DateTime.TryParse(d.ToString(), out DateTime parsed))
-                        dates.Add(parsed.Date);
+                    if (!doc.Exists) continue;
+                    var d = doc.ToDictionary();
+                    if (!_tryParseTimestamp(d, "startTime", out var startTime)) continue;
+
+                    sessions.Add(new MinigameSession
+                    {
+                        RemoteId        = doc.Id,
+                        StartTime       = startTime,
+                        DurationSeconds = _float(d, "durationSeconds"),
+                        MinigameId      = (MinigameType)_int(d, "minigameId"),
+                        EmotionBefore   = (EmotionType)_int(d, "emotionBefore"),
+                        EmotionAfter    = (EmotionType)_int(d, "emotionAfter"),
+                        RelaxationScore = _float(d, "relaxationScore"),
+                        MetricsJson     = _string(d, "metricsJson"),
+                        MoodBefore      = _nullableInt(d, "moodBefore"),
+                        MoodBeforeRecordedAt = _tryParseTimestamp(d, "moodBeforeAt", out var moodBeforeAt) ? moodBeforeAt : (DateTime?)null,
+                        MoodAfter       = _nullableInt(d, "moodAfter")
+                    });
                 }
-
-                return dates;
+                return sessions;
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[FirestoreManager] GetCheckInHistory: {ex.Message}");
-                return new List<DateTime>();
-            }
-        }
-
-        /// <summary>
-        /// Elimina el documento del usuario y sus subcolecciones de diario y estrellas.
-        /// Llamar antes de borrar la cuenta de Firebase Auth.
-        /// </summary>
-        public async Task DeleteUserData(string firebaseUserId)
-        {
-            try
-            {
-                // Borrar cada documento de la subcolección diary
-                CollectionReference diaryRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId)
-                    .Collection("diary");
-
-                QuerySnapshot diarySnap = await diaryRef.GetSnapshotAsync();
-                foreach (DocumentSnapshot doc in diarySnap.Documents)
-                    await doc.Reference.DeleteAsync();
-
-                // Borrar cada documento de la subcolección stars (colección de StarFisher)
-                QuerySnapshot starsSnap = await _starsCollection(firebaseUserId).GetSnapshotAsync();
-                foreach (DocumentSnapshot doc in starsSnap.Documents)
-                    await doc.Reference.DeleteAsync();
-
-                // Borrar el documento principal del usuario
-                await _db.Collection("users").Document(firebaseUserId).DeleteAsync();
-
-                Debug.Log($"[FirestoreManager] Datos de usuario eliminados de Firestore: {firebaseUserId}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[FirestoreManager] DeleteUserData: {ex.Message}");
-                throw;
+                Debug.LogWarning($"[FirestoreManager] GetMinigameSessions: {ex.Message}");
+                return null;
             }
         }
 
@@ -335,95 +434,30 @@ namespace Lutra.Core.Systems
         // ══════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Añade un itemId al array de inventario del usuario en Firestore.
-        /// Idempotente: no añade duplicados.
+        /// Añade un ítem al inventario remoto (ArrayUnion: atómico e idempotente) y lo quita de la
+        /// lista de vendidos por si se había vendido antes.
         /// </summary>
         public async Task AddInventoryItem(string firebaseUserId, string itemId)
         {
-            try
+            await _userDoc(firebaseUserId).SetAsync(new Dictionary<string, object>
             {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
-
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-                var itemIds = new List<string>();
-
-                if (snapshot.Exists && snapshot.ContainsField("inventoryItems"))
-                {
-                    var existing = snapshot.GetValue<List<object>>("inventoryItems");
-                    foreach (var d in existing)
-                        itemIds.Add(d.ToString());
-                }
-
-                if (!itemIds.Contains(itemId))
-                {
-                    itemIds.Add(itemId);
-                    await docRef.UpdateAsync(new Dictionary<string, object>
-                        { { "inventoryItems", itemIds } });
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] AddInventoryItem: {ex.Message}");
-            }
+                { InventoryField, FieldValue.ArrayUnion(itemId) },
+                { RemovedField,   FieldValue.ArrayRemove(itemId) }
+            }, SetOptions.MergeAll);
         }
 
-        /// <summary>Elimina un itemId del array de inventario del usuario en Firestore.</summary>
+        /// <summary>
+        /// Quita un ítem del inventario remoto, lo apunta como vendido (para que otro dispositivo
+        /// con datos antiguos no lo vuelva a subir) y borra su colocación.
+        /// </summary>
         public async Task RemoveInventoryItem(string firebaseUserId, string itemId)
         {
-            try
+            await _userDoc(firebaseUserId).SetAsync(new Dictionary<string, object>
             {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
-
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-                if (!snapshot.Exists || !snapshot.ContainsField("inventoryItems")) return;
-
-                var existing = snapshot.GetValue<List<object>>("inventoryItems");
-                var itemIds  = new List<string>();
-                foreach (var d in existing)
-                    itemIds.Add(d.ToString());
-
-                if (itemIds.Remove(itemId))
-                    await docRef.UpdateAsync(new Dictionary<FieldPath, object>
-                    {
-                        { new FieldPath("inventoryItems"), itemIds },
-                        { new FieldPath(PlacementsField, itemId), FieldValue.Delete }
-                    });
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] RemoveInventoryItem: {ex.Message}");
-            }
-        }
-
-        /// <summary>Devuelve los IDs de todos los ítems del inventario del usuario en Firestore.</summary>
-        public async Task<List<string>> GetInventoryItemIds(string firebaseUserId)
-        {
-            try
-            {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
-
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-                if (!snapshot.Exists || !snapshot.ContainsField("inventoryItems"))
-                    return new List<string>();
-
-                var raw    = snapshot.GetValue<List<object>>("inventoryItems");
-                var result = new List<string>();
-                foreach (var d in raw)
-                    result.Add(d.ToString());
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] GetInventoryItemIds: {ex.Message}");
-                return new List<string>();
-            }
+                { InventoryField,  FieldValue.ArrayRemove(itemId) },
+                { RemovedField,    FieldValue.ArrayUnion(itemId) },
+                { PlacementsField, new Dictionary<string, object> { { itemId, FieldValue.Delete } } }
+            }, SetOptions.MergeAll);
         }
 
         /// <summary>
@@ -432,66 +466,37 @@ namespace Lutra.Core.Systems
         /// </summary>
         public async Task SetInventoryPlacement(string firebaseUserId, string itemId, int placementIndex)
         {
-            try
+            object value = placementIndex >= 0 ? placementIndex : FieldValue.Delete;
+            await _userDoc(firebaseUserId).SetAsync(new Dictionary<string, object>
             {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
-
-                // FieldPath por segmentos: los itemId pueden ser numéricos ("2") o llevar puntos
-                object value = placementIndex >= 0 ? placementIndex : FieldValue.Delete;
-                await docRef.UpdateAsync(new Dictionary<FieldPath, object>
-                    { { new FieldPath(PlacementsField, itemId), value } });
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] SetInventoryPlacement: {ex.Message}");
-            }
-        }
-
-        /// <summary>Devuelve itemId → índice de colocación de los ítems colocados en SafeZone.</summary>
-        public async Task<Dictionary<string, int>> GetInventoryPlacements(string firebaseUserId)
-        {
-            var result = new Dictionary<string, int>();
-            try
-            {
-                DocumentSnapshot snapshot = await _db
-                    .Collection("users")
-                    .Document(firebaseUserId)
-                    .GetSnapshotAsync();
-
-                if (!snapshot.Exists || !snapshot.ContainsField(PlacementsField))
-                    return result;
-
-                var raw = snapshot.GetValue<Dictionary<string, object>>(PlacementsField);
-                foreach (var pair in raw)
-                    if (int.TryParse(pair.Value?.ToString(), out int index) && index >= 0)
-                        result[pair.Key] = index;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] GetInventoryPlacements: {ex.Message}");
-            }
-            return result;
+                { PlacementsField, new Dictionary<string, object> { { itemId, value } } }
+            }, SetOptions.MergeAll);
         }
 
         // ══════════════════════════════════════════════════════════════
         // MONEDAS
         // ══════════════════════════════════════════════════════════════
 
-        /// <summary>Actualiza solo el saldo de monedas del perfil remoto.</summary>
+        /// <summary>Suma (o resta) monedas en remoto con un incremento atómico.</summary>
+        public async Task IncrementCoins(string firebaseUserId, int delta)
+        {
+            await _userDoc(firebaseUserId).SetAsync(new Dictionary<string, object>
+            {
+                { "coins", FieldValue.Increment(delta) }
+            }, SetOptions.MergeAll);
+        }
+
+        /// <summary>
+        /// Escribe el saldo absoluto y marca el documento con la versión actual (a partir de ahí
+        /// el saldo remoto manda y solo cambia con IncrementCoins).
+        /// </summary>
         public async Task SaveCoins(string firebaseUserId, int coins)
         {
-            try
+            await _userDoc(firebaseUserId).SetAsync(new Dictionary<string, object>
             {
-                await _db.Collection("users")
-                    .Document(firebaseUserId)
-                    .SetAsync(new Dictionary<string, object> { { "coins", coins } }, SetOptions.MergeAll);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] SaveCoins: {ex.Message}");
-            }
+                { "coins",       coins },
+                { "syncVersion", SyncVersion }
+            }, SetOptions.MergeAll);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -501,108 +506,237 @@ namespace Lutra.Core.Systems
         /// <summary>Guarda (sobrescribe) una estrella de la colección en users/{uid}/stars/{starId}.</summary>
         public async Task SaveStarEntry(string firebaseUserId, StarCollectionEntry entry)
         {
-            try
+            await _subcollection(firebaseUserId, "stars").Document(entry.StarId).SetAsync(new Dictionary<string, object>
             {
-                var data = new Dictionary<string, object>
-                {
-                    { "timesCaught",   entry.TimesCaught },
-                    { "firstCaughtAt", entry.FirstCaughtAt.ToString("o") },
-                    { "lastCaughtAt",  entry.LastCaughtAt.ToString("o") }
-                };
-
-                await _starsCollection(firebaseUserId).Document(entry.StarId).SetAsync(data);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[FirestoreManager] SaveStarEntry: {ex.Message}");
-            }
+                { "timesCaught",   entry.TimesCaught },
+                { "firstCaughtAt", entry.FirstCaughtAt.ToString("o") },
+                { "lastCaughtAt",  entry.LastCaughtAt.ToString("o") }
+            });
         }
 
+        /// <summary>Colección de estrellas guardada (null si falla la lectura).</summary>
         public async Task<List<StarCollectionEntry>> GetStarCollection(string firebaseUserId)
         {
-            var entries = new List<StarCollectionEntry>();
             try
             {
-                QuerySnapshot snapshot = await _starsCollection(firebaseUserId).GetSnapshotAsync();
+                QuerySnapshot snapshot = await _subcollection(firebaseUserId, "stars").GetSnapshotAsync();
+                var entries = new List<StarCollectionEntry>();
 
                 foreach (DocumentSnapshot doc in snapshot.Documents)
                 {
                     if (!doc.Exists) continue;
                     var d = doc.ToDictionary();
 
-                    int.TryParse(d.TryGetValue("timesCaught", out var times) ? times?.ToString() : null, out int timesCaught);
+                    int timesCaught = _int(d, "timesCaught");
                     if (timesCaught <= 0) continue;
 
                     entries.Add(new StarCollectionEntry
                     {
                         StarId        = doc.Id,
                         TimesCaught   = timesCaught,
-                        FirstCaughtAt = _parseDate(d, "firstCaughtAt"),
-                        LastCaughtAt  = _parseDate(d, "lastCaughtAt")
+                        FirstCaughtAt = _tryParseTimestamp(d, "firstCaughtAt", out var first) ? first : DateTime.Now,
+                        LastCaughtAt  = _tryParseTimestamp(d, "lastCaughtAt",  out var last)  ? last  : DateTime.Now
                     });
                 }
-
-                Debug.Log($"[FirestoreManager] Estrellas de la colección recuperadas: {entries.Count}");
+                return entries;
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[FirestoreManager] GetStarCollection: {ex.Message}");
+                return null;
             }
-            return entries;
         }
 
-        public async Task<(DateTime? date, EmotionType emotion)> GetLastCheckIn(string firebaseUserId)
+        // ══════════════════════════════════════════════════════════════
+        // CENTRO DE NOTIFICACIONES
+        // ══════════════════════════════════════════════════════════════
+
+        public async Task SaveNotification(string firebaseUserId, AppNotification notification)
+        {
+            if (string.IsNullOrEmpty(notification.RemoteId)) return;
+
+            await _subcollection(firebaseUserId, "notifications").Document(notification.RemoteId).SetAsync(new Dictionary<string, object>
+            {
+                { "createdAt",  notification.CreatedAt.ToString("o") },
+                { "type",       (int)notification.Type },
+                { "title",      notification.Title ?? string.Empty },
+                { "body",       notification.Body  ?? string.Empty },
+                { "coins",      notification.Coins },
+                { "itemId",     notification.ItemId },
+                { "source",     (int)notification.Source },
+                { "sourceRef",  notification.SourceRef },
+                { "isRead",     notification.IsRead },
+                { "isPinned",   notification.IsPinned },
+                { "resolvedAt", notification.ResolvedAt?.ToString("o") }
+            });
+        }
+
+        /// <summary>Todas las notificaciones (null si falla la lectura).</summary>
+        public async Task<List<AppNotification>> GetNotifications(string firebaseUserId)
         {
             try
             {
-                DocumentReference docRef = _db
-                    .Collection("users")
-                    .Document(firebaseUserId);
+                QuerySnapshot snapshot = await _subcollection(firebaseUserId, "notifications").GetSnapshotAsync();
+                var notifications = new List<AppNotification>();
 
-                DocumentSnapshot snapshot = await docRef.GetSnapshotAsync();
-
-                if (!snapshot.Exists) return (null, EmotionType.Calm);
-
-                var d = snapshot.ToDictionary();
-
-                DateTime? date = null;
-                if (d.TryGetValue("lastCheckInDate", out var raw) && raw != null)
+                foreach (DocumentSnapshot doc in snapshot.Documents)
                 {
-                    if (DateTime.TryParse(raw.ToString(), out var parsed))
-                        date = parsed;
-                }
+                    if (!doc.Exists) continue;
+                    var d = doc.ToDictionary();
+                    if (!_tryParseTimestamp(d, "createdAt", out var createdAt)) continue;
 
-                EmotionType emotion = EmotionType.Calm;
-                if (d.TryGetValue("lastEmotionType", out var emotionRaw) && emotionRaw != null)
-                {
-                    if (int.TryParse(emotionRaw.ToString(), out var emotionInt))
-                        emotion = (EmotionType)emotionInt;
+                    notifications.Add(new AppNotification
+                    {
+                        RemoteId   = doc.Id,
+                        CreatedAt  = createdAt,
+                        Type       = (NotificationType)_int(d, "type"),
+                        Title      = _string(d, "title"),
+                        Body       = _string(d, "body"),
+                        Coins      = _int(d, "coins"),
+                        ItemId     = _nullableString(d, "itemId"),
+                        Source     = (RewardSource)_int(d, "source"),
+                        SourceRef  = _nullableString(d, "sourceRef"),
+                        IsRead     = d.TryGetValue("isRead",   out var read)   && read   is bool r && r,
+                        IsPinned   = d.TryGetValue("isPinned", out var pinned) && pinned is bool p && p,
+                        ResolvedAt = _tryParseTimestamp(d, "resolvedAt", out var resolvedAt) ? resolvedAt : (DateTime?)null
+                    });
                 }
-
-                return (date, emotion);
+                return notifications;
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[FirestoreManager] GetLastCheckIn: {ex.Message}");
-                return (null, EmotionType.Calm);
+                Debug.LogWarning($"[FirestoreManager] GetNotifications: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ESCALAS VALIDADAS (WHO-5)
+        // ══════════════════════════════════════════════════════════════
+
+        public async Task SaveScaleResponse(string firebaseUserId, ScaleResponse response)
+        {
+            if (string.IsNullOrEmpty(response.RemoteId)) return;
+
+            await _subcollection(firebaseUserId, "scaleResponses").Document(response.RemoteId).SetAsync(new Dictionary<string, object>
+            {
+                { "scale",           (int)response.Scale },
+                { "availableSince",  response.AvailableSince.ToString("yyyy-MM-dd") },
+                { "completedAt",     response.CompletedAt.ToString("o") },
+                { "answersJson",     response.AnswersJson ?? string.Empty },
+                { "rawScore",        response.RawScore },
+                { "score",           response.Score },
+                { "durationSeconds", response.DurationSeconds }
+            });
+        }
+
+        /// <summary>Todos los envíos de escalas (null si falla la lectura).</summary>
+        public async Task<List<ScaleResponse>> GetScaleResponses(string firebaseUserId)
+        {
+            try
+            {
+                QuerySnapshot snapshot = await _subcollection(firebaseUserId, "scaleResponses").GetSnapshotAsync();
+                var responses = new List<ScaleResponse>();
+
+                foreach (DocumentSnapshot doc in snapshot.Documents)
+                {
+                    if (!doc.Exists) continue;
+                    var d = doc.ToDictionary();
+                    if (!_tryParseTimestamp(d, "completedAt", out var completedAt)) continue;
+
+                    responses.Add(new ScaleResponse
+                    {
+                        RemoteId        = doc.Id,
+                        Scale           = (ScaleType)_int(d, "scale"),
+                        AvailableSince  = DateTime.TryParseExact(_string(d, "availableSince"), "yyyy-MM-dd",
+                                              CultureInfo.InvariantCulture, DateTimeStyles.None, out var since)
+                                          ? since : completedAt.Date,
+                        CompletedAt     = completedAt,
+                        AnswersJson     = _string(d, "answersJson"),
+                        RawScore        = _int(d, "rawScore"),
+                        Score           = _int(d, "score"),
+                        DurationSeconds = _float(d, "durationSeconds")
+                    });
+                }
+                return responses;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FirestoreManager] GetScaleResponses: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // BORRADO DE CUENTA
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Elimina el documento del usuario y todas sus subcolecciones.
+        /// Llamar antes de borrar la cuenta de Firebase Auth.
+        /// </summary>
+        public async Task DeleteUserData(string firebaseUserId)
+        {
+            try
+            {
+                foreach (var name in new[] { "diary", "emotions", "minigameSessions", "stars", "notifications", "scaleResponses" })
+                {
+                    QuerySnapshot snapshot = await _subcollection(firebaseUserId, name).GetSnapshotAsync();
+                    foreach (DocumentSnapshot doc in snapshot.Documents)
+                        await doc.Reference.DeleteAsync();
+                }
+
+                await _userDoc(firebaseUserId).DeleteAsync();
+                Debug.Log($"[FirestoreManager] Datos de usuario eliminados de Firestore: {firebaseUserId}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[FirestoreManager] DeleteUserData: {ex.Message}");
+                throw;
             }
         }
 
         // ── Helpers privados ───────────────────────────────────────────
 
-        private const string PlacementsField = "inventoryPlacements";
+        private DocumentReference _userDoc(string firebaseUserId) => _db.Collection("users").Document(firebaseUserId);
 
-        private CollectionReference _starsCollection(string firebaseUserId) => _db
-            .Collection("users")
-            .Document(firebaseUserId)
-            .Collection("stars");
+        private CollectionReference _subcollection(string firebaseUserId, string name) => _userDoc(firebaseUserId).Collection(name);
 
-        private static DateTime _parseDate(Dictionary<string, object> data, string key)
+        private static string _string(Dictionary<string, object> d, string key)
+            => d.TryGetValue(key, out var value) && value != null ? value.ToString() : string.Empty;
+
+        private static int _int(Dictionary<string, object> d, string key)
+            => d.TryGetValue(key, out var value) && value != null ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : 0;
+
+        /// <summary>Texto opcional: null si el campo no existe o se guardó como null.</summary>
+        private static string _nullableString(Dictionary<string, object> d, string key)
+            => d.TryGetValue(key, out var value) && value != null ? value.ToString() : null;
+
+        /// <summary>Entero opcional: null si el campo no existe o se guardó como null.</summary>
+        private static int? _nullableInt(Dictionary<string, object> d, string key)
+            => d.TryGetValue(key, out var value) && value != null ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : (int?)null;
+
+        private static float _float(Dictionary<string, object> d, string key)
+            => d.TryGetValue(key, out var value) && value != null ? Convert.ToSingle(value, CultureInfo.InvariantCulture) : 0f;
+
+        private static List<string> _stringList(Dictionary<string, object> d, string key)
         {
-            return data.TryGetValue(key, out var raw) && DateTime.TryParse(raw?.ToString(), null,
-                       System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
-                ? parsed
-                : DateTime.Now;
+            var result = new List<string>();
+            if (d.TryGetValue(key, out var raw) && raw is IEnumerable<object> list)
+                foreach (var item in list)
+                    if (item != null) result.Add(item.ToString());
+            return result;
+        }
+
+        /// <summary>Fechas guardadas con ToString("o"); se devuelven en hora local.</summary>
+        private static bool _tryParseTimestamp(Dictionary<string, object> d, string key, out DateTime value)
+        {
+            value = default;
+            if (!d.TryGetValue(key, out var raw) || raw == null) return false;
+            if (!DateTime.TryParse(raw.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out value))
+                return false;
+            if (value.Kind == DateTimeKind.Utc) value = value.ToLocalTime();
+            return true;
         }
     }
 }

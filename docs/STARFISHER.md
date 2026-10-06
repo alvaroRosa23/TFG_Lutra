@@ -62,9 +62,9 @@ galaxias, nebulosa y vía láctea al fondo, Luna con cráteres en primer plano).
 ### 3.4 Pantalla de estrella
 - Muestra: arte, nombre, rareza, peso, edad, descripción/historia y frase.
 - Indicador **"¡Nueva!"** si es la primera vez que se pesca (se registra en la colección).
-- Botón **Soltar** → se oculta toda la interfaz; solo queda la estrella y el texto
+- Botón **Soltar** → se abre un panel propio (fondo opaco) con solo la estrella y el texto
   *"Arrastra hacia arriba para soltarla"*. El jugador la **arrastra hacia arriba** y la estrella
-  vuelve al cielo. Después, siguiente lanzamiento.
+  vuelve al cielo. Después, **destello blanco** y vuelta a la partida con el siguiente lanzamiento.
 
 ## 4. Rarezas y probabilidades
 
@@ -165,15 +165,15 @@ más la especial de racha (nº 31).
 
 | Dato | SQLite | Firestore | Restauración |
 |---|---|---|---|
-| Colección | tabla `StarCollection` (`StarCollectionEntry`) | `users/{uid}/stars/{starId}`: `timesCaught`, `firstCaughtAt`, `lastCaughtAt` | `LoginController` → `StarCollectionStore.RestoreFromFirestoreAsync` (fusiona: mayor contador, fechas extremas) |
-| Telescopio | `InventoryItems` | `inventoryItems` | ya existente |
-| Colocación de muebles (**nuevo**, para todos los ítems) | `InventoryItem.PlacementIndex` | mapa `inventoryPlacements` { itemId: índice } | `LoginController._restorePlacementsFromFirestore` |
-| Monedas (**nuevo**: antes solo se subían al guardar el perfil) | `UserProfile.Coins` | `coins` | con el perfil |
+| Colección | tabla `StarCollection` (`StarCollectionEntry`) | `users/{uid}/stars/{starId}`: `timesCaught`, `firstCaughtAt`, `lastCaughtAt` | `CloudSync` (fusiona: mayor contador, fechas extremas; sube lo que en remoto falta o es menor) |
+| Telescopio | `InventoryItems` | `inventoryItems` | `CloudSync` |
+| Colocación de muebles (todos los ítems) | `InventoryItem.PlacementIndex` | mapa `inventoryPlacements` { itemId: índice } | `CloudSync` |
+| Monedas | `UserProfile.Coins` | `coins` (incrementos atómicos) | `CloudSync` |
 
 - Las capturas se guardan **al momento de pescar** (no al terminar la partida), en segundo plano y
   en orden (`StarCollectionStore._saveChain`).
-- `FirestoreManager` escucha `EventBus.OnCoinsChanged` y sube el saldo leído de SQLite, así que
-  cualquier cambio de monedas de la app queda sincronizado.
+- Todo lo sube `DataRepository` al escribir (`CloudSync.Push*`): capturas, telescopio, colocaciones
+  y cada variación de monedas (`AddCoins`/`SpendCoins` → `IncrementCoins`).
 
 ## 11. Arte y audio
 
@@ -210,7 +210,7 @@ más la especial de racha (nº 31).
 | `Core/Data/ScriptableObjects/StarDefinition.cs`, `StarCatalog.cs` | Datos de las estrellas |
 
 Cambios en código existente: `DataRepository` / `DatabaseManager` (tabla y métodos de la colección),
-`FirestoreManager` (estrellas, colocaciones, monedas), `LoginController` (restauración),
+`FirestoreManager` y `CloudSync` (estrellas, colocaciones, monedas, restauración),
 `SafeZoneItem` (`isRewardOnly`, `interaction`), `SafeZoneView` / `SafeZoneController` (libro,
 botón "Usar", telescopio, sincronización de colocaciones).
 
@@ -260,7 +260,7 @@ encima):
 | 6 | `BiteIndicator` | "¡!" sobre el anzuelo o arriba + `TimerFill` (`Image` *Filled* radial). Desactivado |
 | 7 | `ReelIdleFill` | Opcional: `Image` *Filled* horizontal (tiempo antes de que escape) |
 | 8 | `RevealPanel` | Ficha: `Image` grande, TMP de nombre, rareza, peso, edad, descripción, frase y veces pescada, `NewBadge` ("¡Nueva estrella! Añadida a tu colección") y botón `Release` ("Soltar"). Desactivado |
-| 9 | `ReleasePanel` | Transparente a pantalla completa; hijos `ReleaseStar` (`Image` ~350×350 en el centro, Raycast **on** + `StarFisherReleaseDrag`) y `ReleaseHint` (TMP). Desactivado |
+| 9 | `ReleasePanel` | Pantalla completa con `Image` de fondo opaco (Raycast **on**, tapa la partida); hijos `ReleaseStar` (`Image` ~350×350 en el centro, Raycast **on** + `StarFisherReleaseDrag`) y `ReleaseHint` (TMP). Al soltar la estrella: destello blanco → se cierra el panel → siguiente lanzamiento. Desactivado |
 | 10 | `WhiteFlash` | `Image` blanca a pantalla completa, Raycast off. Desactivada |
 | 11 | `StarBook` | Libro de colección (ver paso 6) |
 | 12 | `ExitConfirmPanel` | "¿Salir? Perderás el progreso de la partida (las estrellas pescadas se quedan en tu colección)" con `Yes` / `No`. Desactivado |

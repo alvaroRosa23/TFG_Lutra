@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 18
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 19
-  displayName: 
+  displayName: Errante
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.6 masas solares
+  age: "800M a\xF1os"
+  description: "A Errante la expulsaron de su c\xFAmulo cuando era joven, y desde
+    entonces viaja sola por la galaxia. Con los a\xF1os ha visto nebulosas, c\xFAmulos
+    y rincones que ha hecho que sienta como su casa su propio camino."
+  phrase: "Los cambios que no elegimos dan miedo. Tambi\xE9n pueden llevarte a lugares
+    y personas que todav\xEDa no imaginas."

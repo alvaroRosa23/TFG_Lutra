@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 1.05
-  age: 3900M
+  weight: 1.05 masas solares
+  age: "3900M a\xF1os"
   description: "Vela parpadea. Tiene manchas oscuras que a veces le apagan parte
     de la luz, y durante a\xF1os crey\xF3 que se estaba rompiendo. Esta aprendiendo
     a aceptar que parpadear forma parte de ser una estrella."
-  phrase: "\"Supongo que tener altibajos no significa que est\xE9 perdiendo mi luz...\""
+  phrase: "Supongo que tener altibajos no significa que est\xE9 perdiendo mi luz..."

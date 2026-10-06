@@ -13,12 +13,13 @@ MonoBehaviour:
   m_Name: Star 14
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 15
-  displayName: 
+  displayName: Nana
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.2 masas solares
+  age: "3000M a\xF1os"
+  description: 'Nana canta para el universo. A veces tiene miedo de hacer lo que
+    quiere, pero luego piensa que si no lo hace nadie lo va a hacer por ella. '
+  phrase: "Tu forma de sentir y de ser tiene su propia melod\xEDa."

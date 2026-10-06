@@ -19,7 +19,7 @@ namespace Lutra.Minigames
     ///   Ready → (mantener pulsado) Charging → (soltar) Casting → Waiting (5-10 s, el anzuelo se guía
     ///   con el dedo; las zonas brillantes suben la rareza) → Bite (2 s para tocar) → Reeling (toques
     ///   según la rareza; 1,5 s sin tocar = escapa) → Caught (destello blanco) → Reveal (ficha) →
-    ///   Releasing (arrastrar hacia arriba) → siguiente lanzamiento.
+    ///   Releasing (arrastrar hacia arriba) → Released (destello blanco) → siguiente lanzamiento.
     ///   Si escapa: Escaped (mensaje amable) → siguiente lanzamiento.
     ///
     /// Estrella de racha: el día en que la racha llega a streakStarDays, el primer lanzamiento
@@ -138,6 +138,7 @@ namespace Lutra.Minigames
                 case StarFisherPhase.Bite:      _tickBite(deltaTime); break;
                 case StarFisherPhase.Reeling:   _tickReeling(deltaTime); break;
                 case StarFisherPhase.Caught:    _tickCaught(); break;
+                case StarFisherPhase.Released:  _tickReleased(); break;
                 case StarFisherPhase.Escaped:
                     if (_phaseTime >= _tuning.escapeMessageSeconds) _nextCast();
                     break;
@@ -435,6 +436,30 @@ namespace Lutra.Minigames
                 _view.ShowMessage("¡Colección completa! Has conseguido el telescopio para tu zona segura");
         }
 
+        /// <summary>
+        /// Destello blanco mientras la estrella sube: sube, con la pantalla en blanco se cierra la
+        /// liberación y se prepara el siguiente lanzamiento, y la vista lo desvanece sobre la partida.
+        /// </summary>
+        private void _tickReleased()
+        {
+            float fadeIn = Mathf.Max(0.01f, _tuning.releaseFlashInSeconds);
+            float t = _phaseTime - _tuning.releaseFlashDelaySeconds;
+
+            if (t < 0f) return; // la estrella empieza a subir antes del destello
+            if (t < fadeIn)
+            {
+                _view.SetWhiteFlash(t / fadeIn);
+                return;
+            }
+
+            _view.SetWhiteFlash(1f);
+            if (t < fadeIn + _tuning.releaseFlashHoldSeconds) return;
+
+            _view.EndRelease();
+            _nextCast();
+            _view.FadeOutWhiteFlash(_tuning.flashOutSeconds);
+        }
+
         private void _escape(bool atBite)
         {
             _scoring.RegisterEscape(atBite);
@@ -508,9 +533,7 @@ namespace Lutra.Minigames
         private void _onStarReleased()
         {
             if (_phase != StarFisherPhase.Releasing) return;
-
-            _view.EndRelease();
-            _nextCast();
+            _setPhase(StarFisherPhase.Released);
         }
 
         private void _onBookRequested()

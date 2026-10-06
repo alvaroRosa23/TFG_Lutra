@@ -122,6 +122,7 @@ namespace Lutra.Features.EmotionCheck
                         existingDayRecord.SelectedEmotionTags = _currentRecord.SelectedEmotionTags;
                         existingDayRecord.SelectedMotiveTags  = _currentRecord.SelectedMotiveTags;
                         existingDayRecord.Timestamp           = DateTime.Now;
+                        existingDayRecord.Source              = RecordSource.User; // un placeholder restaurado pasa a ser real
                         await DataRepo.UpdateEmotion(existingDayRecord);
                         _currentRecord = existingDayRecord;
                     }
@@ -142,14 +143,15 @@ namespace Lutra.Features.EmotionCheck
                     await DataRepo.SaveEmotion(_currentRecord);
                 }
 
+                // El registro completo lo sube DataRepository; esto marca el último check-in.
+                // Sin esperar: sin conexión la escritura queda en cola y no bloquea la navegación.
                 try
                 {
-                    await ServiceLocator.Get<FirestoreManager>()
+                    _ = ServiceLocator.Get<FirestoreManager>()
                         .SaveLastCheckIn(
                             ServiceLocator.Get<AuthManager>().CurrentUserId,
                             DateTime.Today,
                             _currentRecord.EmotionType);
-                    Debug.Log("[EmotionCheckController] Check-in guardado en Firestore");
                 }
                 catch (Exception ex)
                 {
@@ -163,6 +165,10 @@ namespace Lutra.Features.EmotionCheck
 
                 // Emitir después de la transición para que MainMenuScreen ya esté activo y suscrito
                 EventBus.EmitCurrentEmotionChanged(_currentRecord.EmotionType);
+
+                // Protocolo de apoyo: 3 días seguidos con ánimo bajo (el diálogo se abre sobre el menú)
+                if (_currentRecord.IsMorningCheck)
+                    _ = SupportProtocol.CheckLowMoodStreak();
             }
             catch (Exception ex)
             {

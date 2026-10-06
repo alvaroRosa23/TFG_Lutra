@@ -184,10 +184,10 @@ namespace Lutra.Features.Charts
                 _totalCheckInsLabel.text = data.TotalCheckIns.ToString();
 
             if (_mostFrequentEmotionLabel != null)
-                _mostFrequentEmotionLabel.text = data.MostFrequentEmotion.ToString();
+                _mostFrequentEmotionLabel.text = data.MostFrequentEmotion.ToDisplayName();
 
             if (_mostBeneficialMinigameLabel != null)
-                _mostBeneficialMinigameLabel.text = data.MostBeneficialMinigame.ToString();
+                _mostBeneficialMinigameLabel.text = data.MostBeneficialMinigame.ToDisplayName();
 
             if (_avgSessionDurationLabel != null)
                 _avgSessionDurationLabel.text = ChartsCalculator.FormatDuration(

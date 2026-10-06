@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.6
-  age: 11000M
+  weight: 0.6 masas solares
+  age: "11000M a\xF1os"
   description: "Noa vive en el borde de la galaxia, donde casi no hay nadie. Se siente
     sola, aunque sabe que su luz viaja a miles de a\xF1os ayudando a los planetas
     m\xE1s pr\xF3ximas."
-  phrase: "\"Me gustar\xEDa sentir el calor de otra estrella\""
+  phrase: "Me gustar\xEDa sentir el calor de otra estrella."

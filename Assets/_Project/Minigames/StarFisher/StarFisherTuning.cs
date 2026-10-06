@@ -77,6 +77,12 @@ namespace Lutra.Minigames
         public float flashHoldSeconds     = 1.2f;
         public float flashOutSeconds      = 0.5f;
         public float escapeMessageSeconds = 2f;
+        [Tooltip("Destello al liberar: segundos de subida de la estrella antes de que empiece el destello")]
+        public float releaseFlashDelaySeconds = 0.3f;
+        [Tooltip("Destello al liberar: segundos que tarda en llegar a blanco (la estrella sigue subiendo debajo)")]
+        public float releaseFlashInSeconds    = 0.6f;
+        [Tooltip("Destello al liberar: segundos a tope antes de volver a la partida")]
+        public float releaseFlashHoldSeconds  = 0.15f;
 
         public int GetTaps(int rarity)  => _at(tapsByRarity, rarity, 5);
         public int GetCoins(int rarity) => _at(coinsByRarity, rarity, 1);

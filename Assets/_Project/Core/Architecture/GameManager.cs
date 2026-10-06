@@ -117,7 +117,18 @@ namespace Lutra.Core.Architecture
                 return;
             }
 
-            // 3. Sin perfil local: intentar restaurar desde Firestore
+            // 3. Perfil local de otra cuenta (no debería pasar: el login ya lo limpia) → descartarlo
+            if (profile != null &&
+                !string.IsNullOrEmpty(profile.FirebaseUserId) &&
+                profile.FirebaseUserId != _authManager.CurrentUserId)
+            {
+                Debug.Log("[GameManager] Perfil local de otra cuenta → limpiando datos locales.");
+                await _dataRepository.DeleteAllData();
+                profile = null;
+            }
+
+            // 4. Sin perfil local: intentar restaurar desde Firestore
+            bool restoredProfile = false;
             if (profile == null)
             {
                 try
@@ -127,8 +138,9 @@ namespace Lutra.Core.Architecture
 
                     if (firestoreProfile != null)
                     {
-                        await _dataRepository.SaveUserProfile(firestoreProfile);
+                        await _dataRepository.SaveUserProfile(firestoreProfile, sync: false);
                         profile = firestoreProfile;
+                        restoredProfile = true;
                         Debug.Log("[GameManager] Perfil restaurado desde Firestore.");
                     }
                 }
@@ -138,7 +150,7 @@ namespace Lutra.Core.Architecture
                 }
             }
 
-            // 4. Sigue sin perfil local → completar onboarding
+            // 5. Sigue sin perfil local → completar onboarding
             if (profile == null)
             {
                 Debug.Log("[GameManager] Sin perfil → OnboardingProfile.");
@@ -146,85 +158,26 @@ namespace Lutra.Core.Architecture
                 return;
             }
 
-            // 5. Sesión y perfil listos → activar paleta cultural y comprobar check-in del día
+            // 6. Sesión y perfil listos → activar paleta cultural y sincronizar con Firestore.
+            //    Si hay que decidir con datos remotos (perfil recién restaurado o sin check-in
+            //    local hoy, que pudo hacerse en otro dispositivo) se espera a la sincronización;
+            //    si no, se hace en segundo plano para no retrasar la entrada.
             ServiceLocator.Get<ThemeManager>().SetActiveCulture(profile.Culture);
             var streakManager   = ServiceLocator.Get<StreakManager>();
             bool checkedInToday = await streakManager.HasCheckedInToday();
 
-            if (!checkedInToday)
+            if (restoredProfile || !checkedInToday)
             {
-                try
-                {
-                    var lastCheckIn = await _firestoreManager
-                        .GetLastCheckIn(_authManager.CurrentUserId);
-
-                    if (lastCheckIn.date.HasValue &&
-                        lastCheckIn.date.Value.Date == System.DateTime.Today)
-                    {
-                        checkedInToday = true;
-                        Debug.Log("[GameManager] Check-in de hoy restaurado desde Firestore");
-
-                        ServiceLocator.Get<ThemeManager>().ApplyTheme(lastCheckIn.emotion);
-
-                        // Crear registro local placeholder si no existe
-                        var localRecord = await _dataRepository.GetTodayEmotion();
-                        if (localRecord == null)
-                        {
-                            var placeholderRecord = new EmotionRecord
-                            {
-                                Timestamp      = System.DateTime.Today.AddHours(0),
-                                EmotionType    = lastCheckIn.emotion,
-                                IntensityLevel = 3,
-                                IsMorningCheck = true,
-                                Source         = RecordSource.RestoredFirestore
-                            };
-                            await _dataRepository.SaveEmotion(placeholderRecord);
-                            Debug.Log("[GameManager] Registro placeholder creado en SQLite.");
-                        }
-
-                        var checkInHistory = await _firestoreManager
-                            .GetCheckInHistory(_authManager.CurrentUserId);
-
-                        foreach (var historyDate in checkInHistory)
-                        {
-                            if (historyDate.Date == System.DateTime.Today)
-                            {
-                                Debug.Log("[GameManager] Saltando hoy en historial — ya tiene placeholder con emoción correcta");
-                                continue;
-                            }
-
-                            var existing = await _dataRepository
-                                .GetEmotionsForPeriod(
-                                    historyDate,
-                                    historyDate.AddDays(1).AddSeconds(-1));
-
-                            if (existing.Count == 0)
-                            {
-                                var historyRecord = new EmotionRecord
-                                {
-                                    Timestamp      = historyDate.AddHours(12),
-                                    EmotionType    = EmotionType.Calm,
-                                    IntensityLevel = 3,
-                                    IsMorningCheck = true,
-                                    Source         = RecordSource.RestoredFirestoreHistory
-                                };
-                                await _dataRepository.SaveEmotion(historyRecord);
-                            }
-                        }
-
-                        Debug.Log($"[GameManager] Historial restaurado: {checkInHistory.Count} días desde Firestore");
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    Debug.LogWarning($"[GameManager] No se pudo consultar check-in Firestore: {ex.Message}");
-                }
+                await CloudSync.SyncAllAsync(_dataRepository);
+                checkedInToday = await streakManager.HasCheckedInToday();
+            }
+            else
+            {
+                _ = CloudSync.SyncAllAsync(_dataRepository);
             }
 
-            if (checkedInToday)
-                _appStateMachine.TransitionTo(AppState.MainMenu);
-            else
-                _appStateMachine.TransitionTo(AppState.EmotionCheck);
+            // Sin consentimiento de datos de salud pasa antes por la pantalla de consentimiento
+            await ConsentGate.ContinueTo(checkedInToday ? AppState.MainMenu : AppState.EmotionCheck);
         }
 
         // ── Métodos privados ───────────────────────────────────────────
@@ -251,6 +204,11 @@ namespace Lutra.Core.Architecture
             if (_allServices != null)
                 foreach (var service in _allServices)
                     if (service != null) service.RegisterSelf();
+
+            // Centro de notificaciones: se crea por código si no está en la escena
+            var notificationCenter = GetComponent<NotificationCenter>();
+            if (notificationCenter == null) notificationCenter = gameObject.AddComponent<NotificationCenter>();
+            notificationCenter.RegisterSelf();
 
             // 4. Inicializar Firebase Auth (requiere que AuthManager ya esté registrado)
             bool firebaseReady = await _authManager.InitializeAsync();

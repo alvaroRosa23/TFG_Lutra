@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.2
-  age: 8000M
+  weight: 0.2 masas solares
+  age: "8000M a\xF1os"
   description: "TIlo se toma las cosas con calma. Mientras otras estrellas se consumen
     a toda prisa, \xE9l disfruta de cada mill\xF3n de a\xF1os como si fuera una tarde
     de domingo. "
-  phrase: "\"Compararte con el ritmo de los dem\xE1s solo te quita energ\xEDa\""
+  phrase: "Compararte con el ritmo de los dem\xE1s solo te quita energ\xEDa."

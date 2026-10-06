@@ -17,6 +17,7 @@ namespace Lutra.Core.Systems
     /// Gestiona las notificaciones locales de la aplicación.
     /// - Recordatorio diario configurable (hora).
     /// - Aviso de racha en peligro (programado a las 21:00).
+    /// - Aviso de cuestionario de bienestar (WHO-5) disponible, 14 días después de cada envío.
     ///
     /// Las preferencias de hora se persisten en PlayerPrefs para
     /// reprogramar el recordatorio en cada arranque de la app.
@@ -25,6 +26,7 @@ namespace Lutra.Core.Systems
     {
         private const string DAILY_REMINDER_ID = "owlet_daily_reminder";
         private const string STREAK_WARNING_ID  = "owlet_streak_warning";
+        private const string WHO5_REMINDER_ID   = "lutra_who5_reminder";
 
         [SerializeField] private int _defaultReminderHour   = 20;
         [SerializeField] private int _defaultReminderMinute = 0;
@@ -96,6 +98,29 @@ namespace Lutra.Core.Systems
         public void CancelStreakWarning()
         {
             _cancelNotification(STREAK_WARNING_ID);
+        }
+
+        /// <summary>
+        /// Programa el aviso de que el WHO-5 vuelve a estar disponible el día indicado, a la hora
+        /// del recordatorio diario (o la hora por defecto). Sustituye al aviso anterior.
+        /// No programa nada si esa hora ya ha pasado: el centro de notificaciones ya lo muestra.
+        /// </summary>
+        public void ScheduleWho5Reminder(DateTime availableDate)
+        {
+            _cancelNotification(WHO5_REMINDER_ID);
+
+            int hour   = PlayerPrefs.GetInt("notif_hour",   _defaultReminderHour);
+            int minute = PlayerPrefs.GetInt("notif_minute", _defaultReminderMinute);
+            var fireTime = new DateTime(availableDate.Year, availableDate.Month, availableDate.Day, hour, minute, 0);
+            if (fireTime <= DateTime.Now) return;
+
+            _scheduleNotification(
+                WHO5_REMINDER_ID,
+                "Tu cuestionario de bienestar está disponible",
+                "5 preguntas, alrededor de 1 minuto. Lo encontrarás en tus notificaciones.",
+                fireTime);
+
+            Debug.Log($"[NotificationManager] Aviso de WHO-5 → {fireTime:HH:mm dd/MM/yyyy}");
         }
 
         /// <summary>

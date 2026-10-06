@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using Lutra.Core.Architecture;
@@ -79,19 +78,9 @@ namespace Lutra.Features.Charts
 
                 (DateTime from, DateTime to) = _getDateRange(period);
 
-                // Cargar registros emocionales del período
-                var records = await _dataRepository.GetEmotionsForPeriod(from, to);
-
-                // Cargar sesiones de todos los minijuegos del período
-                var allSessions = new List<MinigameSession>();
-                foreach (MinigameType type in Enum.GetValues(typeof(MinigameType)))
-                {
-                    var sessions = await _dataRepository.GetSessionsForMinigame(type);
-                    // Filtrar por período
-                    foreach (var s in sessions)
-                        if (s.StartTime >= from && s.StartTime <= to)
-                            allSessions.Add(s);
-                }
+                // Registros del usuario (sin placeholders restaurados) y partidas del período
+                var records     = await _dataRepository.GetUserEmotionsForPeriod(from, to);
+                var allSessions = await _dataRepository.GetSessionsForPeriod(from, to);
 
                 // Calcular métricas
                 _cachedData = ChartsCalculator.Calculate(records, allSessions);
@@ -125,25 +114,18 @@ namespace Lutra.Features.Charts
 
                 var from = DateTime.Now.Date.AddDays(-7);
                 var to   = DateTime.Now.Date.AddDays(-1);
-                var records = await _dataRepository.GetEmotionsForPeriod(from, to);
+                var records = await _dataRepository.GetUserEmotionsForPeriod(from, to);
 
                 if (records == null || records.Count == 0)
                     return string.Empty;
 
-                var allSessions = new List<MinigameSession>();
-                foreach (MinigameType type in Enum.GetValues(typeof(MinigameType)))
-                {
-                    var sessions = await _dataRepository.GetSessionsForMinigame(type);
-                    foreach (var s in sessions)
-                        if (s.StartTime >= from && s.StartTime <= to)
-                            allSessions.Add(s);
-                }
+                var allSessions = await _dataRepository.GetSessionsForPeriod(from, to);
 
                 var weekData = ChartsCalculator.Calculate(records, allSessions);
                 weekData.CurrentStreak = await _streakManager.GetCurrentStreak();
 
-                string dominant  = _emotionDisplayName(weekData.MostFrequentEmotion);
-                string minigame  = _minigameDisplayName(weekData.MostBeneficialMinigame);
+                string dominant  = weekData.MostFrequentEmotion.ToDisplayName();
+                string minigame  = weekData.MostBeneficialMinigame.ToDisplayName();
                 string streak    = ChartsCalculator.FormatStreak(weekData.CurrentStreak);
 
                 string report =
@@ -181,32 +163,6 @@ namespace Lutra.Features.Charts
                 _                   => (now.Date.AddDays(-6), now)
             };
         }
-
-        private static string _emotionDisplayName(EmotionType emotion) => emotion switch
-        {
-            EmotionType.Joy         => "Alegría",
-            EmotionType.Calm        => "Calma",
-            EmotionType.Sadness     => "Tristeza",
-            EmotionType.Anxiety     => "Ansiedad",
-            EmotionType.Frustration => "Frustración",
-            EmotionType.Overwhelm   => "Agobio",
-            EmotionType.Nostalgia   => "Nostalgia",
-            EmotionType.Energy      => "Energía",
-            _                       => emotion.ToString()
-        };
-
-        private static string _minigameDisplayName(MinigameType type) => type switch
-        {
-            MinigameType.Unpacking  => "Unpacking",
-            MinigameType.FruitNinja => "Fruit Ninja",
-            MinigameType.Beatmaker  => "Beatmaker",
-            MinigameType.SandCastle => "Castillo de Arena",
-            MinigameType.FluidSim   => "Fluid Simulator",
-            MinigameType.BreathJump => "Breath Jump",
-            MinigameType.Puzzle     => "Puzzle",
-            MinigameType.StarFisher => "Pescador de Estrellas",
-            _                       => type.ToString()
-        };
 
         private void _subscribeToView()
         {

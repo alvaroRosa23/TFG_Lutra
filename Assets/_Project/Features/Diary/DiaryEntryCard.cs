@@ -7,26 +7,34 @@ using Lutra.Core.Data.Models;
 
 namespace Lutra.Features.Diary
 {
+    /// <summary>
+    /// Tarjeta de una entrada en la lista del diario. La tarjeta no es pulsable: la edición y el
+    /// borrado se hacen con sus dos botones, a la izquierda del punto de emoción.
+    /// </summary>
     public class DiaryEntryCard : MonoBehaviour
     {
         [SerializeField] private TextMeshProUGUI _titleLabel;
         [SerializeField] private TextMeshProUGUI _dateLabel;
         [SerializeField] private TextMeshProUGUI _previewLabel;
         [SerializeField] private Image           _emotionDot;
-        [SerializeField] private Button          _button;
+        [SerializeField] private Button          _editButton;
+        [SerializeField] private Button          _deleteButton;
 
-        public Action<DiaryEntry> OnCardClicked;
+        public Action<DiaryEntry> OnEditClicked;
+        public Action<DiaryEntry> OnDeleteClicked;
 
         private DiaryEntry _entry;
 
         private void Awake()
         {
-            _button?.onClick.AddListener(() => OnCardClicked?.Invoke(_entry));
+            _editButton?.onClick.AddListener(() => OnEditClicked?.Invoke(_entry));
+            _deleteButton?.onClick.AddListener(() => OnDeleteClicked?.Invoke(_entry));
         }
 
         private void OnDestroy()
         {
-            _button?.onClick.RemoveAllListeners();
+            _editButton?.onClick.RemoveAllListeners();
+            _deleteButton?.onClick.RemoveAllListeners();
         }
 
         public void SetupCard(DiaryEntry entry, Color emotionColor)
@@ -38,7 +46,9 @@ namespace Lutra.Features.Diary
 
             if (_dateLabel != null)
             {
-                string dateStr = entry.Date.ToString("dddd, dd MMMM", new CultureInfo("es-ES"));
+                // Con el año si la entrada no es de este año
+                string format  = entry.Date.Year == DateTime.Today.Year ? "dddd, dd MMMM" : "dddd, dd MMMM yyyy";
+                string dateStr = entry.Date.ToString(format, new CultureInfo("es-ES"));
                 if (!string.IsNullOrEmpty(dateStr))
                     dateStr = char.ToUpper(dateStr[0]) + dateStr.Substring(1);
                 _dateLabel.text = dateStr;

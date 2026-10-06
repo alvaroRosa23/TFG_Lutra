@@ -90,6 +90,8 @@ namespace Lutra.Core.Data.Persistence
                 await _connection.CreateTableAsync<DiaryEntry>();
                 await _connection.CreateTableAsync<InventoryItem>();
                 await _connection.CreateTableAsync<StarCollectionEntry>();
+                await _connection.CreateTableAsync<AppNotification>();
+                await _connection.CreateTableAsync<ScaleResponse>();
 
                 Debug.Log("[DatabaseManager] Tablas verificadas/creadas correctamente.");
             }

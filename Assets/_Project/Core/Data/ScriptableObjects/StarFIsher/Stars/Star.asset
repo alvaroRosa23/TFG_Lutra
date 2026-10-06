@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.9
-  age: 5200M
+  weight: 0.9 masas solares
+  age: "5200M a\xF1os"
   description: "Lumi es esa estrella que siempre esta ah\xED cuando lo necesitas.
     No le interesa ser la m\xE1s brillante, sino que se conforma con dar calor y
     luz a los planetas que la rodean."
-  phrase: "\"Mi luz es m\xE1s brillante cuando veo brillar a los dem\xE1s\""
+  phrase: "Mi luz es m\xE1s brillante cuando veo brillar a los dem\xE1s."

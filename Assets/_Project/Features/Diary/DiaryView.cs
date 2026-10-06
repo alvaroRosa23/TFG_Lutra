@@ -9,7 +9,8 @@ using Lutra.Core.Data.Models;
 namespace Lutra.Features.Diary
 {
     /// <summary>
-    /// Vista del Diario Personal. Gestiona la lista de entradas y el editor.
+    /// Vista del Diario Personal. Gestiona la lista de entradas del mes, el editor y el
+    /// diálogo de confirmación de borrado.
     /// No contiene lógica de negocio; delega en DiaryController.
     /// </summary>
     public class DiaryView : MonoBehaviour
@@ -23,6 +24,17 @@ namespace Lutra.Features.Diary
         [SerializeField] private TMP_InputField    _searchInput;
         [SerializeField] private TextMeshProUGUI   _emptyStateLabel;
         [SerializeField] private GameObject        _mainView;
+
+        [Header("Navegación por meses")]
+        [SerializeField] private Button            _previousMonthButton;
+        [SerializeField] private Button            _nextMonthButton;
+        [SerializeField] private TextMeshProUGUI   _monthLabel;
+
+        [Header("Confirmación de borrado")]
+        [SerializeField] private GameObject        _deleteConfirmPanel;
+        [SerializeField] private TextMeshProUGUI   _deleteConfirmLabel;
+        [SerializeField] private Button            _deleteConfirmButton;
+        [SerializeField] private Button            _deleteCancelButton;
 
         [Header("Editor de entrada")]
         [SerializeField] private GameObject        _editorView;
@@ -40,7 +52,12 @@ namespace Lutra.Features.Diary
         public Action              OnSaveClicked;
         public Action              OnBackClicked;
         public Action<string>      OnSearchChanged;
-        public Action<DiaryEntry>  OnEntryCardClicked;
+        public Action              OnPreviousMonthClicked;
+        public Action              OnNextMonthClicked;
+        public Action<DiaryEntry>  OnEditEntryClicked;
+        public Action<DiaryEntry>  OnDeleteEntryClicked;
+        public Action              OnDeleteConfirmed;
+        public Action              OnDeleteCancelled;
 
         // ── Unity lifecycle ────────────────────────────────────────────
 
@@ -50,6 +67,12 @@ namespace Lutra.Features.Diary
             _saveButton?.onClick.AddListener(() => OnSaveClicked?.Invoke());
             _backButton?.onClick.AddListener(() => OnBackClicked?.Invoke());
             _searchInput?.onValueChanged.AddListener(text => OnSearchChanged?.Invoke(text));
+            _previousMonthButton?.onClick.AddListener(() => OnPreviousMonthClicked?.Invoke());
+            _nextMonthButton?.onClick.AddListener(() => OnNextMonthClicked?.Invoke());
+            _deleteConfirmButton?.onClick.AddListener(() => OnDeleteConfirmed?.Invoke());
+            _deleteCancelButton?.onClick.AddListener(() => OnDeleteCancelled?.Invoke());
+
+            HideDeleteConfirm();
         }
 
         private void OnDestroy()
@@ -58,12 +81,21 @@ namespace Lutra.Features.Diary
             _saveButton?.onClick.RemoveAllListeners();
             _backButton?.onClick.RemoveAllListeners();
             _searchInput?.onValueChanged.RemoveAllListeners();
+            _previousMonthButton?.onClick.RemoveAllListeners();
+            _nextMonthButton?.onClick.RemoveAllListeners();
+            _deleteConfirmButton?.onClick.RemoveAllListeners();
+            _deleteCancelButton?.onClick.RemoveAllListeners();
 
-            OnNewEntryClicked  = null;
-            OnSaveClicked      = null;
-            OnBackClicked      = null;
-            OnSearchChanged    = null;
-            OnEntryCardClicked = null;
+            OnNewEntryClicked      = null;
+            OnSaveClicked          = null;
+            OnBackClicked          = null;
+            OnSearchChanged        = null;
+            OnPreviousMonthClicked = null;
+            OnNextMonthClicked     = null;
+            OnEditEntryClicked     = null;
+            OnDeleteEntryClicked   = null;
+            OnDeleteConfirmed      = null;
+            OnDeleteCancelled      = null;
         }
 
         // ── API pública ────────────────────────────────────────────────
@@ -76,6 +108,7 @@ namespace Lutra.Features.Diary
 
         public void ShowEditorView(DiaryEntry entry)
         {
+            HideDeleteConfirm();
             _mainView?.SetActive(false);
             _editorView?.SetActive(true);
 
@@ -97,7 +130,37 @@ namespace Lutra.Features.Diary
             ClearError();
         }
 
-        public void RefreshEntries(List<DiaryEntry> entries)
+        /// <summary>Texto entre las flechas ("Abril 2026") y qué flechas se pueden pulsar.</summary>
+        public void SetMonthNavigation(string label, bool canGoPrevious, bool canGoNext)
+        {
+            if (_monthLabel != null)          _monthLabel.text = label;
+            if (_previousMonthButton != null) _previousMonthButton.interactable = canGoPrevious;
+            if (_nextMonthButton != null)     _nextMonthButton.interactable     = canGoNext;
+        }
+
+        public void ClearSearch()
+        {
+            _searchInput?.SetTextWithoutNotify(string.Empty);
+        }
+
+        public void ShowDeleteConfirm(DiaryEntry entry)
+        {
+            if (_deleteConfirmLabel != null)
+            {
+                string title = string.IsNullOrEmpty(entry.Title) ? "esta entrada" : $"«{entry.Title}»";
+                _deleteConfirmLabel.text = $"¿Seguro que quieres borrar {title}? No se podrá recuperar.";
+            }
+
+            _deleteConfirmPanel?.SetActive(true);
+        }
+
+        public void HideDeleteConfirm()
+        {
+            _deleteConfirmPanel?.SetActive(false);
+        }
+
+        /// <param name="emptyMessage">Texto que se muestra si la lista está vacía.</param>
+        public void RefreshEntries(List<DiaryEntry> entries, string emptyMessage)
         {
             if (_entriesContainer == null) return;
 
@@ -114,7 +177,7 @@ namespace Lutra.Features.Diary
             {
                 _emptyStateLabel.gameObject.SetActive(isEmpty);
                 if (isEmpty)
-                    _emptyStateLabel.text = "Aún no tienes entradas. ¡Empieza a escribir!";
+                    _emptyStateLabel.text = emptyMessage;
             }
 
             if (isEmpty || _entryCardPrefab == null) return;
@@ -126,7 +189,8 @@ namespace Lutra.Features.Diary
                 if (card == null) continue;
 
                 card.SetupCard(entry, _getEmotionColor(entry.Mood));
-                card.OnCardClicked = e => OnEntryCardClicked?.Invoke(e);
+                card.OnEditClicked   = e => OnEditEntryClicked?.Invoke(e);
+                card.OnDeleteClicked = e => OnDeleteEntryClicked?.Invoke(e);
             }
 
             if (_entriesContainer is RectTransform rt)

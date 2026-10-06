@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 29
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 30
-  displayName: 
+  displayName: Magna
   rarity: 4
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 100 masas solares
+  age: "2M a\xF1os"
+  description: Magna brilla como millones de soles a la vez. Su luz es tan poderosa
+    que da forma a las nebulosas de su alrededor y ayuda a nacer a nuevas estrellas.
+  phrase: "Lo que eres en lo m\xE1s profundo no depende de lo que pase fuera. Reconoce
+    tu luz, y ayuda a otros."

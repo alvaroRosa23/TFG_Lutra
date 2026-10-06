@@ -17,6 +17,9 @@ namespace Lutra.Minigames
         [SerializeField] private float _flySeconds        = 1.1f;
         [SerializeField] private float _returnSmoothing   = 12f;
 
+        /// <summary>Se ha soltado con fuerza suficiente: la estrella empieza a subir sola.</summary>
+        public event Action OnLaunched;
+
         /// <summary>La estrella ha terminado de subir y desaparecer.</summary>
         public event Action OnReleased;
 
@@ -40,7 +43,11 @@ namespace Lutra.Minigames
             if (_group == null) _group = gameObject.AddComponent<CanvasGroup>();
         }
 
-        private void OnDestroy() => OnReleased = null;
+        private void OnDestroy()
+        {
+            OnLaunched = null;
+            OnReleased = null;
+        }
 
         /// <summary>Coloca la estrella en su sitio y permite arrastrarla.</summary>
         public void Arm()
@@ -112,6 +119,7 @@ namespace Lutra.Minigames
                 _flying  = true;
                 _armed   = false;
                 _flyTime = 0f;
+                OnLaunched?.Invoke();
             }
         }
 

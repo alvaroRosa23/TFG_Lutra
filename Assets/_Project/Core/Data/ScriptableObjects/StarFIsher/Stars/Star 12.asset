@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 12
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 13
-  displayName: 
+  displayName: "\xC1mbar"
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.4 masas solares
+  age: "4000M a\xF1os"
+  description: "\xC1mbar recuerda cuando era peque\xF1a y amarilla, y a veces echa
+    de menos esa \xE9poca. Le cuesta aceptar que las estrellas cambian, pero siguen
+    siendo estrellas."
+  phrase: "Echo de menos qui\xE9n era antes, m\xE1s brillante, m\xE1s j\xF3ven..."

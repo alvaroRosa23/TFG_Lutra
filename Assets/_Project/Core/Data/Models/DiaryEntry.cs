@@ -34,6 +34,13 @@ namespace Lutra.Core.Data.Models
         /// <summary>Ruta relativa a la imagen adjunta. Null si no hay imagen.</summary>
         public string ImagePath { get; set; }
 
+        /// <summary>
+        /// Identificador estable del registro en Firestore (GUID, o la fecha en entradas antiguas
+        /// del diario). Se asigna al guardar por primera vez; null = aún no sincronizado.
+        /// </summary>
+        [Indexed]
+        public string RemoteId { get; set; }
+
         // ── Constructor sin parámetros requerido por sqlite-net-pcl ──
         public DiaryEntry() { }
 

@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 17
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 18
-  displayName: 
+  displayName: Gemela
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.1+0.9 masas solares
+  age: "2500M a\xF1os"
+  description: "Gemela son dos estrellas que nacieron juntas, en la misma nube. Con
+    el tiempo se alejaron tanto que tardan siglos en verse de cerca. Aun as\xED,
+    nunca han dejado de girar la una alrededor de la otra. Cada vez que se cruzan
+    brillan un poquito m\xE1s."
+  phrase: "Las personas que quieres siguen contigo aunque est\xE9n lejos."

@@ -18,11 +18,11 @@ MonoBehaviour:
   isStreakSpecial: 1
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 5.4
-  age: 70M
+  weight: 5.4 masas solares
+  age: "70M a\xF1os"
   description: "Mientras todo el cielo gira, Polar se queda en su sitio, fiel, noche
     tras noche. Por eso es la estrella que te gu\xEDa cuando te pierdes. Solo se
     deja ver por quienes vuelven d\xEDa tras d\xEDa, porque reconoce en ellos su
     misma constancia."
-  phrase: "\"Cada d\xEDa que te cuidas, tu luz se vuelve un poco m\xE1s f\xE1cil
-    de encontrar\""
+  phrase: "Cada d\xEDa que te cuidas, tu luz se vuelve un poco m\xE1s f\xE1cil de
+    encontrar."

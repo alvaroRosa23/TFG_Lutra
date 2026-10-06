@@ -18,17 +18,20 @@ string       SongTitle            // reservado para uso futuro
 string       SongArtist           // reservado para uso futuro
 RecordSource Source               // User=0 (defecto), RestoredFirestore=1, RestoredFirestoreHistory=2
                                   // columna añadida via migración automática; defecto 0 correcto para registros previos
+string       RemoteId             // id en Firestore emotions/{RemoteId} (GUID; lo asigna DataRepository).
+                                  // PhotoPath no se sube (es un archivo local); los placeholders no se suben
 ```
 
 ### DiaryEntry (tabla `DiaryEntries`)
 ```csharp
 int      Id          // PK autoincrement
-DateTime Date        // fecha normalizada a medianoche (sin hora)
+DateTime Date        // fecha y hora de creación (puede haber varias entradas el mismo día)
 string   Title
 string   Content
 string   Mood        // nombre del enum EmotionType como string
 string   AudioPath   // ruta local (nullable; NO se sincroniza a Firestore)
 string   ImagePath   // ruta local (nullable; NO se sincroniza a Firestore)
+string   RemoteId    // id en Firestore diary/{RemoteId}: GUID, o "yyyy-MM-dd" en entradas antiguas
 ```
 
 ### UserProfile (tabla `UserProfiles`)
@@ -37,7 +40,7 @@ int        Id
 string     Name, Surname
 string     Avatar
 DateTime   CreationDate, DateOfBirth
-int        Coins
+int        Coins                   // solo cambia con AddCoins/SpendCoins/SetCoins; SaveUserProfile la conserva
 string     FirebaseUserId          // UID de Firebase Auth
 string     Email
 CultureType Culture
@@ -87,7 +90,27 @@ MinigameType MinigameId
 EmotionType  EmotionBefore
 EmotionType  EmotionAfter
 float        RelaxationScore     // 0.0 - 1.0
+string       MetricsJson         // métricas propias de cada minijuego
+string       RemoteId            // id en Firestore minigameSessions/{RemoteId} (GUID); los récords salen de aquí
+int?         MoodBefore          // 1-5; ánimo más reciente al empezar (DataRepository.GetLatestMood), no se pregunta
+DateTime?    MoodBeforeRecordedAt// cuándo se registró MoodBefore (para la ventana de 3 h, docs/METRICS.md §4.6)
+int?         MoodAfter           // 1-5; caritas de PostMinigameScreen; null = no respondió
 ```
+`EmotionAfter` vale `EmotionBefore` por defecto si el usuario no elige: no usarlo para medir efecto.
+
+`MinigameSessionExtensions` (mismo archivo): `IsValidForMoodEffect()` (hay `MoodAfter` y el ánimo previo es de ≤ 3 h, `MaxMoodBeforeAgeHours`) y `MoodDelta()`. **Toda métrica de efecto de minijuegos debe usar esta regla.**
+
+### AppNotification (tabla `Notifications`)
+Centro de notificaciones. Campos, enums `NotificationType` / `RewardSource` (guardados como int: no reordenar) y DTO en memoria `RewardGrant` → `docs/NOTIFICATION_CENTER.md` §2–3.
+
+### ScaleResponse (tabla `ScaleResponses`)
+Envío completo de una escala validada (WHO-5). Enum `ScaleType { Who5 = 0 }`. Campos → `docs/PROFESSIONAL_REPORT.md` §3.6.
+
+## Clases auxiliares de modelos (`Core/Data/Models/`)
+
+- **`EmotionCircumplex`**: `ValenceOf()` (`Valence`: Unpleasant / Mixed / Pleasant), `ArousalOf()` (`Arousal`: Low / High), `QuadrantOf()` (`AffectQuadrant`: Tension, LowMood, Calm, Enthusiasm, Mixed). Derivación teórica (`docs/METRICS.md` §3.1).
+- **`MotiveTags`**: `Fixed` (motivos fijos del check-in), `Parse(json)`, `GroupKey(tag)` (hobby o fijo → él mismo; texto libre → "Otros"), `DisplayName(key)`.
+- **`UserProfile.Preferences`** — claves en uso: `consentVersion`, `consentDate`, `diaryLanguageAnalysis` (`ConsentGate`), `lastDiaryRewardDate` (`DiaryController`).
 
 ---
 
@@ -131,6 +154,8 @@ Usado en `EmotionRecord.Source`. `DataRepository.GetLastEmotion()` filtra `Sourc
 | `Calm` | 5 | Calma |
 | `Energy` | 6 | Energía |
 | `Joy` | 7 | Alegría |
+
+Nombres en español: usar siempre las extensiones `ToDisplayName()` de `EmotionType`, `MinigameType` y `HobbyType` (en el mismo archivo que cada enum, como `StarRarity`). No reimplementar `switch` de nombres.
 
 ### MinigameTag (12 valores)
 ```

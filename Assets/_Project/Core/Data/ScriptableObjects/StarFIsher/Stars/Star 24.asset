@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 24
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 25
-  displayName: 
+  displayName: "Cris\xE1lida"
   rarity: 2
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 3 masas solares
+  age: "100000 a\xF1os"
+  description: "Cris\xE1lida a\xFAn no ha salido de su nebulosa. Desde fuera parece
+    que no pasa nada, pero dentro est\xE1 ocurriendo todo: se calienta, se ordena
+    y se prepara. Le gusta el silencio de su capullo, d\xE1ndole miedo salir. "
+  phrase: Tengo miedo de salir. Todo es perfecto.

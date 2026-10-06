@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.7
-  age: 2M
+  weight: 0.7 masas solares
+  age: "2M a\xF1os"
   description: "Mimo todav\xEDa lleva puesto el gas del que naci\xF3, como una manta
     que no quiere soltar. Su brillo tiembla, cambia y a veces se apaga un poco, porque
     a\xFAn est\xE1 aprendiendo a ser estrella."
-  phrase: '"La luz de mi mami me protege de la oscuridad"'
+  phrase: La luz de mi mami me protege de la oscuridad.

@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 15
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 16
-  displayName: 
+  displayName: Faro
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.8 masas solares
+  age: "1000M a\xF1os"
+  description: "Faro respira. Se hincha despacio, brilla m\xE1s, y luego se encoge
+    con suavidad, una y otra vez. Cuando una estrella cercana est\xE1 nerviosa, Faro
+    respira a su lado hasta que la otra se contagia de su ritmo y se calma."
+  phrase: "Cuando todo se acelera, vuelve a tu respiraci\xF3n."

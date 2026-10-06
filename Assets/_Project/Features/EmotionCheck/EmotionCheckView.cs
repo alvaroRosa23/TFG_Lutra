@@ -162,11 +162,9 @@ namespace Lutra.Features.EmotionCheck
             _selectedMotiveTags.Clear();
 
             foreach (var hobby in hobbies)
-                _spawnMotiveTag(hobby.ToString(), _getHobbyDisplayName(hobby));
+                _spawnMotiveTag(hobby.ToString(), hobby.ToDisplayName());
 
-            var fixedTags = new[] { "Trabajo", "Familia", "Salud", "Ocio",
-                                    "Relaciones", "Estudio", "Deporte" };
-            foreach (var tag in fixedTags)
+            foreach (var tag in MotiveTags.Fixed)
                 _spawnMotiveTag(tag, tag);
 
             // Forzar recálculo del layout en orden correcto
@@ -239,7 +237,7 @@ namespace Lutra.Features.EmotionCheck
 
                 string key            = emotion.ToString();
                 var    capturedEmotion = emotion;
-                btn.Initialize(key, _getEmotionDisplayName(emotion),
+                btn.Initialize(key, emotion.ToDisplayName(),
                     _emotionTagNormalColor, _emotionTagSelectedColor);
 
                 btn.OnToggled = (value, isSelected) =>
@@ -475,48 +473,5 @@ namespace Lutra.Features.EmotionCheck
             };
             _motiveTagButtons.Add(btn);
         }
-
-        private static string _getEmotionDisplayName(EmotionType emotion) => emotion switch
-        {
-            EmotionType.Joy         => "Alegría",
-            EmotionType.Calm        => "Calma",
-            EmotionType.Sadness     => "Tristeza",
-            EmotionType.Anxiety     => "Ansiedad",
-            EmotionType.Frustration => "Frustración",
-            EmotionType.Overwhelm   => "Agobio",
-            EmotionType.Nostalgia   => "Nostalgia",
-            EmotionType.Energy      => "Energía",
-            _                       => emotion.ToString()
-        };
-
-        private static string _getHobbyDisplayName(HobbyType hobby) => hobby switch
-        {
-            HobbyType.Football     => "Fútbol",
-            HobbyType.Basketball   => "Baloncesto",
-            HobbyType.Tennis       => "Tenis",
-            HobbyType.Swimming     => "Natación",
-            HobbyType.Cycling      => "Ciclismo",
-            HobbyType.Running      => "Running",
-            HobbyType.Yoga         => "Yoga",
-            HobbyType.Dancing      => "Baile",
-            HobbyType.Cooking      => "Cocina",
-            HobbyType.Reading      => "Lectura",
-            HobbyType.Gaming       => "Videojuegos",
-            HobbyType.Music        => "Música",
-            HobbyType.Drawing      => "Dibujo",
-            HobbyType.Photography  => "Fotografía",
-            HobbyType.Traveling    => "Viajes",
-            HobbyType.Hiking       => "Senderismo",
-            HobbyType.Meditation   => "Meditación",
-            HobbyType.Writing      => "Escritura",
-            HobbyType.Cinema       => "Cine",
-            HobbyType.Theater      => "Teatro",
-            HobbyType.Crafts       => "Manualidades",
-            HobbyType.Gardening    => "Jardinería",
-            HobbyType.Volunteering => "Voluntariado",
-            HobbyType.Fitness      => "Fitness",
-            HobbyType.Surfing      => "Surf",
-            _                      => hobby.ToString()
-        };
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using UnityEngine;
 using Lutra.Core.Architecture;
@@ -100,6 +101,16 @@ namespace Lutra.Core.Systems
             EventBus.EmitCoinsChanged(profile?.Coins ?? 0);
 
             Debug.Log($"[StreakManager] Monedas ganadas por check-in: {coins}");
+
+            bool milestone = Array.IndexOf(StreakMilestones, newStreak) >= 0;
+            EventBus.EmitRewardGranted(new RewardGrant
+            {
+                Source    = milestone ? RewardSource.StreakMilestone : RewardSource.CheckIn,
+                Coins     = coins,
+                Title     = milestone ? $"¡Racha de {newStreak} días!" : "Check-in del día",
+                Body      = $"+{coins} monedas",
+                SourceRef = newStreak.ToString()
+            });
 
             // Comprobar hitos y emitir recompensas de decoración
             _checkMilestoneRewards(newStreak);

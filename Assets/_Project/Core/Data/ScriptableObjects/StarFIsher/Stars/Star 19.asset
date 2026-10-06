@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 19
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 20
-  displayName: 
+  displayName: "Roc\xEDo"
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.5 masas solares
+  age: "30M a\xF1os"
+  description: "A Roc\xEDo la rodea un disco de polvo y piedras que a primera vista
+    parece un desorden. Ella lo cuida con paciencia, esperando que ese polvo se junte
+    y alg\xFAn d\xEDa ser\xE1n planetas."
+  phrase: "Aunque ahora todo parezca un caos, se est\xE1 construyendo algo. Lo valioso
+    tarda en tomar forma."

@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 25
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 26
-  displayName: 
+  displayName: "F\xE9nix"
   rarity: 3
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.3 masas solares
+  age: "5000M a\xF1os"
+  description: "F\xE9nix se ha apagado muchas veces, y cada pocas d\xE9cadas vuelve
+    a encenderse de golpe, miles de veces m\xE1s brillante.  Dice que cada vez que
+    renace lo hace un poquito m\xE1s sabia."
+  phrase: "Caer no es el final. Cada vez que vuelves a levantarte demuestras una
+    fuerza que quiz\xE1 ni sab\xEDas que ten\xEDas."

@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 27
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 28
-  displayName: 
+  displayName: "Rub\xED"
   rarity: 3
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 18 masas solares
+  age: "9M a\xF1os"
+  description: "Rub\xED es enorme. Hace poco pas\xF3 por una \xE9poca en la que se
+    oscureci\xF3 tanto que todos pensaron que iba a desaparecer. Ella solo necesitaba
+    tiempo."
+  phrase: "Todos atravesamos \xE9pocas oscuras. Pasan, aunque desde dentro no lo
+    parezca, y tu luz vuelve."

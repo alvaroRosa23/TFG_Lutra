@@ -35,13 +35,9 @@ namespace Lutra.Features.SafeZone
 
         private DataRepository _dataRepository;
         private StreakManager  _streakManager;
-        private AuthManager    _authManager;
-        private FirestoreManager _firestoreManager;
 
         private DataRepository   Repo      => _dataRepository  ??= ServiceLocator.Get<DataRepository>();
         private StreakManager    Streak    => _streakManager    ??= ServiceLocator.Get<StreakManager>();
-        private AuthManager      Auth      => _authManager      ??= ServiceLocator.Get<AuthManager>();
-        private FirestoreManager Firestore => _firestoreManager ??= ServiceLocator.Get<FirestoreManager>();
 
         // ── Estado ─────────────────────────────────────────────────────
 
@@ -280,8 +276,6 @@ namespace Lutra.Features.SafeZone
                 if (refund > 0)
                     await Repo.AddCoins(refund);
 
-                _ = _syncRemoveToFirestore(item.itemId);
-
                 _cachedProfile = await Repo.GetUserProfile();
                 EventBus.EmitCoinsChanged(_cachedProfile?.Coins ?? 0);
 
@@ -406,25 +400,11 @@ namespace Lutra.Features.SafeZone
 
         // ── Helpers ────────────────────────────────────────────────────
 
-        /// <summary>Guarda la colocación en SQLite y la sube a Firestore en segundo plano.</summary>
+        /// <summary>Guarda la colocación (DataRepository la sube sola a Firestore).</summary>
         private async Task _setPlacement(string itemId, bool isPlaced, int placementIndex)
         {
             if (_cachedProfile == null) return;
             await Repo.SetItemPlacement(_cachedProfile.Id, itemId, isPlaced, placementIndex);
-            _ = _syncPlacementToFirestore(itemId, isPlaced ? placementIndex : -1);
-        }
-
-        private async Task _syncPlacementToFirestore(string itemId, int placementIndex)
-        {
-            try
-            {
-                if (!Auth.IsLoggedIn) return;
-                await Firestore.SetInventoryPlacement(Auth.CurrentUserId, itemId, placementIndex);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[SafeZoneController] Sync de colocación a Firestore fallido: {ex.Message}");
-            }
         }
 
         private async Task _loadInventory()
@@ -448,7 +428,6 @@ namespace Lutra.Features.SafeZone
         {
             if (_cachedProfile == null) return;
             await Repo.UnlockItem(_cachedProfile.Id, itemId);
-            _ = _syncAddToFirestore(itemId);
         }
 
         private async Task _unlockDefaultItems()
@@ -488,32 +467,6 @@ namespace Lutra.Features.SafeZone
             foreach (var item in _allItems)
                 if (item != null && item.itemId == itemId) return item;
             return null;
-        }
-
-        private async Task _syncAddToFirestore(string itemId)
-        {
-            try
-            {
-                if (!Auth.IsLoggedIn) return;
-                await Firestore.AddInventoryItem(Auth.CurrentUserId, itemId);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[SafeZoneController] Sync add a Firestore fallido: {ex.Message}");
-            }
-        }
-
-        private async Task _syncRemoveToFirestore(string itemId)
-        {
-            try
-            {
-                if (!Auth.IsLoggedIn) return;
-                await Firestore.RemoveInventoryItem(Auth.CurrentUserId, itemId);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[SafeZoneController] Sync remove a Firestore fallido: {ex.Message}");
-            }
         }
 
         // ── Suscripciones ──────────────────────────────────────────────

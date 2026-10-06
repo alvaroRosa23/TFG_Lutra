@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 1
-  age: 4600M
+  weight: '1 masas solares '
+  age: "4600M a\xF1os"
   description: Candela es insegura y cree que no destaca lo suficiente, a pesar de
     que hace que en los planetas a su alrededor haya vida.
-  phrase: '"No encuentro mi lugar en el universo aunque los planetas agradezcan mi
-    luz"'
+  phrase: No encuentro mi lugar en el universo aunque los planetas agradezcan mi
+    luz.

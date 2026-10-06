@@ -58,6 +58,12 @@ namespace Lutra.Features.Settings
         [SerializeField] private Button     _confirmDeleteYes;
         [SerializeField] private Button     _confirmDeleteNo;
 
+        [Header("Ayuda y privacidad")]
+        [Tooltip("Abre SupportDialog con los recursos de ayuda (024, 112).")]
+        [SerializeField] private Button _helpResourcesButton;
+        [Tooltip("Análisis de escritura del diario para los informes.")]
+        [SerializeField] private Toggle _diaryAnalysisToggle;
+
         [Header("Navegación")]
         [SerializeField] private Button _backButton;
 
@@ -114,6 +120,8 @@ namespace Lutra.Features.Settings
         public event Action                        OnExportDataClicked;
         public event Action                        OnDeleteDataConfirmed;
         public event Action                        OnBackRequested;
+        public event Action                        OnHelpResourcesRequested;
+        public event Action<bool>                  OnDiaryAnalysisChanged;
 
         // ── Estado interno ─────────────────────────────────────────────
 
@@ -180,6 +188,10 @@ namespace Lutra.Features.Settings
             // Navegación
             _backButton?.onClick.AddListener(() => OnBackRequested?.Invoke());
 
+            // Ayuda y privacidad
+            _helpResourcesButton?.onClick.AddListener(() => OnHelpResourcesRequested?.Invoke());
+            _diaryAnalysisToggle?.onValueChanged.AddListener(value => OnDiaryAnalysisChanged?.Invoke(value));
+
             // Cuenta
             _changePasswordButton?.onClick.AddListener(_onChangePasswordButtonClicked);
             _logoutButton?.onClick.AddListener(() => OnLogoutRequested?.Invoke());
@@ -205,6 +217,8 @@ namespace Lutra.Features.Settings
 
         private void OnDestroy()
         {
+            _helpResourcesButton?.onClick.RemoveAllListeners();
+            _diaryAnalysisToggle?.onValueChanged.RemoveAllListeners();
             _reminderHourSlider?.onValueChanged.RemoveAllListeners();
             _notificationsToggle?.onValueChanged.RemoveAllListeners();
             _darkModeToggle?.onValueChanged.RemoveAllListeners();
@@ -289,6 +303,9 @@ namespace Lutra.Features.Settings
         }
 
         /// <summary>Rellena los campos de perfil del usuario.</summary>
+        /// <summary>Estado del interruptor del análisis del diario, sin disparar el evento.</summary>
+        public void LoadDiaryAnalysis(bool enabled) => _silentSetToggle(_diaryAnalysisToggle, enabled);
+
         public void LoadProfile(string name, string surname, DateTime dob, string avatar)
         {
             if (_nameInput    != null) _nameInput.SetTextWithoutNotify(name    ?? "");

@@ -13,37 +13,37 @@ MonoBehaviour:
   m_Name: StarCatalog
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarCatalog
   stars:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  - {fileID: 11400000, guid: 850ab7f1d2c431d4eb33b61e6633c022, type: 2}
+  - {fileID: 11400000, guid: e319a48cd41f4f54ba3d71a5c82e00bc, type: 2}
+  - {fileID: 11400000, guid: 995f03e7e86bfb142ae1c9d311ba8833, type: 2}
+  - {fileID: 11400000, guid: b6d08e792ebcd1840ba65427769cb551, type: 2}
+  - {fileID: 11400000, guid: ee7fad476363f8a4c8e39a8f307ade21, type: 2}
+  - {fileID: 11400000, guid: ec2f86ff071311441ac89b7faec18653, type: 2}
+  - {fileID: 11400000, guid: 381ca35cc1418714e82ef8ac57adeabb, type: 2}
+  - {fileID: 11400000, guid: 014de39d7d8e4ed47a0a69efaf16ba69, type: 2}
+  - {fileID: 11400000, guid: 85a0796165426f7498435c0d7bf14f22, type: 2}
+  - {fileID: 11400000, guid: 3affdd0cef318174ab3dcb4ddfe15d49, type: 2}
+  - {fileID: 11400000, guid: 8d650e498b2c0374ea9691b1299909a9, type: 2}
+  - {fileID: 11400000, guid: fa588f8016a925d489e853c6d6fcef34, type: 2}
+  - {fileID: 11400000, guid: a62a43a7a03f59d4897ec3f0030fc57f, type: 2}
+  - {fileID: 11400000, guid: 5b91a1e20abb3704bac1e4f8edbc8cc9, type: 2}
+  - {fileID: 11400000, guid: d0909f753559cad428656b504a7f6eb0, type: 2}
+  - {fileID: 11400000, guid: fc386d5e7927d5243b2ca314000b9171, type: 2}
+  - {fileID: 11400000, guid: c653148dce9a5014ca5aab099e974e84, type: 2}
+  - {fileID: 11400000, guid: 00db4ffbbf5b26144b7ff30dae2a67e4, type: 2}
+  - {fileID: 11400000, guid: 29d6851c70c548f43b80e4bd1d7c7e3d, type: 2}
+  - {fileID: 11400000, guid: fe9542b13f10b80468055bc4a6e4f3ad, type: 2}
+  - {fileID: 11400000, guid: 78fec022367d23a4db6b72cabe3b1b64, type: 2}
+  - {fileID: 11400000, guid: e7d8492f0b8a4cc4e8d404050dd5eee7, type: 2}
+  - {fileID: 11400000, guid: eea3a9a274808c64592c18a2da0444ea, type: 2}
+  - {fileID: 11400000, guid: 449a3fdf993020d42b2bc733d089660f, type: 2}
+  - {fileID: 11400000, guid: 6a45c9e15d7d1234f85ac65d2f9eb32b, type: 2}
+  - {fileID: 11400000, guid: 8f2ec1d8ddc3bbe4e82429fd1d3b575d, type: 2}
+  - {fileID: 11400000, guid: cbcdeca9eea4e0f4a873f6febd8f1919, type: 2}
+  - {fileID: 11400000, guid: 5a9863b2f7067b54f9175f6f4ea29b90, type: 2}
+  - {fileID: 11400000, guid: 7f68fe74be0ca2b4681bcf38ebd2f25a, type: 2}
+  - {fileID: 11400000, guid: f594007a669d30f45acd38426f4ffc09, type: 2}
+  - {fileID: 11400000, guid: 202fa345b7d396141a56faddecc56eee, type: 2}
   rarityColors:
   - {r: 0.92, g: 0.92, b: 0.95, a: 1}
   - {r: 0.35, g: 0.85, b: 0.45, a: 1}

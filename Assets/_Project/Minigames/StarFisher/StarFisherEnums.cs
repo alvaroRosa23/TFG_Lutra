@@ -12,6 +12,7 @@ namespace Lutra.Minigames
         Caught,     // destello blanco
         Reveal,     // ficha de la estrella + botón Soltar
         Releasing,  // arrastrar hacia arriba para liberarla
+        Released,   // destello blanco al liberarla y vuelta a la partida
         Escaped,    // mensaje de estrella escapada
         Finished    // mensaje final
     }

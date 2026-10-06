@@ -9,6 +9,10 @@ Guía para Claude Code en este repositorio.
 > - `docs/MINIGAMES.md` — infraestructura base y minijuegos pendientes
 > - `docs/STARFISHER.md` — minijuego StarFisher, colección de estrellas y telescopio
 > - `docs/BUGS.md` — bugs resueltos, pendientes de build y auditoría de calidad
+> - `docs/METRICS.md` — catálogo de datos y métricas: qué se registra, fórmulas, base científica, bibliografía
+> - `docs/PROFESSIONAL_REPORT.md` — pantalla de Estadísticas, WHO-5, informe exportable para profesionales, seguridad (edad, consentimiento, protocolo de apoyo)
+> - `docs/NOTIFICATION_CENTER.md` — centro de notificaciones (recompensas, WHO-5 anclado)
+> - `docs/ROADMAP.md` — fases de implementación pendientes y registro de decisiones
 
 ---
 
@@ -22,7 +26,7 @@ Guía para Claude Code en este repositorio.
 - **IDE**: Visual Studio 2022 Community o JetBrains Rider
 - **Abrir proyecto**: Unity Hub → Add → seleccionar esta carpeta
 - **Build**: File > Build Settings → Android o iOS → Build (perfiles en `Assets/Settings/Build Profiles/`)
-- **Tests**: Window > General > Test Runner
+- **Tests**: Window > General > Test Runner → EditMode (ensamblado `Lutra.Tests.EditMode` en `Assets/_Project/Tests/EditMode/`, para clases puras sin Unity)
 
 ## Arquitectura central
 
@@ -42,6 +46,7 @@ Guía para Claude Code en este repositorio.
 | `DataRepository` | Capa de persistencia sobre SQLite; todas las operaciones son `async/await` |
 | `AuthManager` | Firebase Authentication: registro, login, logout, recuperación |
 | `FirestoreManager` | Persistencia remota; SQLite es la fuente local |
+| `CloudSync` | Sincronización SQLite ↔ Firestore: subidas automáticas desde `DataRepository` y `SyncAllAsync` al iniciar sesión/abrir la app |
 | `ThemeManager` | `ApplyTheme(emotion, animate=true)`; `SetActiveCulture(CultureType)` |
 | `MascotController` | Búho animado con `Animator`; hashes pre-cacheados en `Awake()` |
 | `MinigameLoader` | Carga y descarga minijuegos con Additive Scene Loading |
@@ -49,7 +54,12 @@ Guía para Claude Code en este repositorio.
 | `RewardSystem` | Evalúa y otorga recompensas tras cada check-in emocional |
 | `SettingsManager` | Preferencias de usuario; escribe `ColorblindFeature.CurrentMode` en Awake y al cambiar ajustes |
 | `ColorblindFeature` | URP ScriptableRendererFeature; propiedad estática `CurrentMode`; shader `Assets/Shaders/Colorblind.shader` |
-| `NotificationManager` | Recordatorio diario y aviso de racha en peligro |
+| `NotificationManager` | Push del sistema operativo: recordatorio diario y aviso de racha en peligro |
+| `NotificationCenter` | Bandeja dentro de la app: recompensas, resumen semanal, avisos anclados (WHO-5). La crea `GameManager` por código |
+| `ConsentGate` | Consentimiento de datos de salud; `ContinueTo(destino)` tras arranque/login/onboarding |
+| `SupportProtocol` | Aviso de apoyo (024/112) tras 3 días de ánimo ≤ 2 o WHO-5 ≤ 28; máx. 1 cada 7 días |
+| `ReportCalculator` | Todas las métricas de seguimiento (clase pura con tests); `ReportDataLoader.LoadAsync(from, to)` |
+| `Who5Scheduler` | Disponibilidad del WHO-5 (línea base y cada 14 días) → notificación anclada |
 | `StreakWarningChecker` | Programa aviso si racha ≥ 3 días sin check-in |
 | `ScreenManager` | `NavigateTo` / `NavigateBack`, historial de pantallas |
 
@@ -57,20 +67,24 @@ Guía para Claude Code en este repositorio.
 
 ```
 Splash, Login, Register, OnboardingProfile, EmotionCheck,
-MainMenu, Diary, SafeZone, Minigames, MinigameActive, Charts, Settings
+MainMenu, Diary, SafeZone, Minigames, MinigameActive, Charts, Settings, Notifications, Who5, Consent
 ```
+Los estados nuevos se añaden siempre **al final** del enum (sus valores se serializan).
 
 ### Flujo de navegación principal
 
 ```
 Login correcto
   ├── Sin perfil local → Firestore → sin perfil → OnboardingProfile
-  ├── Sin perfil local → Firestore → perfil restaurado → sincronizar diario → ver check-in
-  └── Con perfil → sincronizar diario desde Firestore
+  ├── Sin perfil local → Firestore → perfil restaurado → CloudSync.SyncAllAsync → ver check-in
+  └── Con perfil → CloudSync.SyncAllAsync (todos los datos)
         ├── Check-in hecho hoy → MainMenu
         └── Sin check-in hoy → EmotionCheck
 
-Registro correcto → OnboardingProfile → EmotionCheck → MainMenu
+Registro correcto → OnboardingProfile → Consent → EmotionCheck → MainMenu
+
+Tras el arranque, el login y el onboarding se navega con ConsentGate.ContinueTo(destino):
+si el perfil no tiene el consentimiento de datos de salud vigente, pasa antes por Consent.
 ```
 
 ### Emociones (8, ordenadas por valencia)
@@ -102,6 +116,9 @@ Assets/
 │   │   ├── Minigames/
 │   │   ├── Charts/
 │   │   ├── Settings/
+│   │   ├── Notifications/ (centro de notificaciones)
+│   │   ├── Who5/          (cuestionario de bienestar WHO-5)
+│   │   ├── Consent/       (consentimiento de datos de salud)
 │   │   ├── MainMenu/      (MascotController)
 │   │   └── Onboarding/    (legacy, mantener por compatibilidad)
 │   ├── Minigames/         (IMinigame, MinigameBase, MinigameLoader, MinigameResult)
@@ -202,7 +219,16 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 
 **Minijuegos**: Beatmaker implementado; BreathJump, FruitNinja y StarFisher con código listo (falta montar las escenas); 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
 
-**Firestore**: todo lo que consigue el usuario debe sincronizarse para restaurarse en otro dispositivo (monedas vía `EventBus.OnCoinsChanged`, inventario y colocaciones, colección de estrellas). Al añadir datos nuevos, añadir también su subida y su restauración en `LoginController`.
+**Estadísticas, informe profesional y centro de notificaciones** (en desarrollo, ver `docs/ROADMAP.md`): usuarios ≥ 18 años; un profesional usa Lutra con sus pacientes y el paciente exporta el informe (PDF + CSV). Antes de tocar `Features/Charts`, minijuegos (ánimo antes/después), recompensas o el diario, leer `docs/METRICS.md` y el registro de decisiones de `docs/ROADMAP.md`. Puntos clave:
+- Las estadísticas excluyen siempre los registros con `Source != RecordSource.User`
+- `IntensityLevel` es una copia de `MoodLevel`: no usarlo en métricas
+- Toda recompensa nueva debe emitir `EventBus.EmitRewardGranted` para que aparezca en el centro de notificaciones
+- `NotificationCenter` (bandeja dentro de la app) ≠ `NotificationManager` (push del sistema operativo)
+- Las métricas se calculan **solo** en `ReportCalculator` (no reimplementarlas en las vistas); el efecto de minijuegos usa `MinigameSession.IsValidForMoodEffect()`
+- Navegar a MainMenu / EmotionCheck tras login, arranque u onboarding con `ConsentGate.ContinueTo`, nunca con `TransitionTo` directo
+- Descartado hasta nuevo aviso: Affect Grid y sueño en el check-in. Pendiente: comprobación de edad ≥ 18
+
+**Firestore**: todo lo que consigue el usuario debe sincronizarse para restaurarse en otro dispositivo. Las features **no** suben nada a mano: cada escritura de `DataRepository` llama a `CloudSync.Push*` y `CloudSync.SyncAllAsync` reconcilia al iniciar sesión y al abrir la app. Al añadir datos nuevos: id estable (`RemoteId` GUID), `Save`/`Get` en `FirestoreManager`, `Push*` en la escritura de `DataRepository` y un paso en `CloudSync._syncAll`. Las escrituras que vienen de Firestore usan `sync: false`. Las colecciones nuevas necesitan permiso en las reglas de Firestore.
 
 ---
 

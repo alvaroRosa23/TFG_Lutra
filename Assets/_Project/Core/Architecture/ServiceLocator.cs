@@ -45,6 +45,22 @@ namespace Lutra.Core.Architecture
         }
 
         /// <summary>
+        /// Como Get, pero devuelve false en vez de lanzar si el servicio no está registrado.
+        /// Para servicios opcionales (p. ej. en tests o durante el arranque).
+        /// </summary>
+        public static bool TryGet<T>(out T service) where T : class
+        {
+            if (_services.TryGetValue(typeof(T), out var found))
+            {
+                service = (T)found;
+                return true;
+            }
+
+            service = null;
+            return false;
+        }
+
+        /// <summary>
         /// Elimina el registro del servicio indicado. No lanza error si no existía.
         /// </summary>
         public static void Unregister<T>() where T : class

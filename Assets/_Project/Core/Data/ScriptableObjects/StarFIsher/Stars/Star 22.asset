@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 22
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 23
-  displayName: 
+  displayName: Zafiro
   rarity: 2
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 15 masas solares
+  age: "10M a\xF1os"
+  description: "Zafiro lo vive todo a lo grande. Brilla como decenas de miles de
+    soles y, aunque algunas estrellas intenten desprestigiarla, su intensidad es
+    lo que la hace tan incre\xEDble."
+  phrase: Sentir mucho es una forma profunda de vivir.

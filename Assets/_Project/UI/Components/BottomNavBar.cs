@@ -14,7 +14,8 @@ namespace Lutra.UI.Components
     ///     para que MainMenuScreen abra el panel de selección Día/Momento.
     ///   - Si el estado actual NO es MainMenu → navega a MainMenu.
     ///
-    /// La barra se oculta automáticamente en Onboarding y EmotionCheck.
+    /// La barra se oculta automáticamente en Onboarding y EmotionCheck. Una pantalla también
+    /// puede ocultarla temporalmente con EventBus.EmitNavBarVisibilityRequested (editor del diario).
     ///
     /// Setup en Inspector:
     ///   - _navButtons, _navTargets, _navButtonImages: mismo número de elementos, mismo índice.
@@ -42,6 +43,9 @@ namespace Lutra.UI.Components
         [Header("Colores de tab")]
         [SerializeField] private Color _activeColor   = Color.white;
         [SerializeField] private Color _inactiveColor = new Color(1f, 1f, 1f, 0.4f);
+
+        // true si el estado actual oculta la barra; una petición de mostrarla no lo anula
+        private bool _hiddenByState;
 
         // ── Unity lifecycle ────────────────────────────────────────────
 
@@ -85,12 +89,14 @@ namespace Lutra.UI.Components
         {
             EventBus.OnScreenChanged += SetActiveTab;
             EventBus.OnScreenChanged += _onScreenChanged;
+            EventBus.OnNavBarVisibilityRequested += _onVisibilityRequested;
         }
 
         private void OnDisable()
         {
             EventBus.OnScreenChanged -= SetActiveTab;
             EventBus.OnScreenChanged -= _onScreenChanged;
+            EventBus.OnNavBarVisibilityRequested -= _onVisibilityRequested;
         }
 
         private void OnDestroy()
@@ -124,7 +130,7 @@ namespace Lutra.UI.Components
 
         /// <summary>
         /// Oculta el contenido visual en los flujos sin navegación libre
-        /// (EmotionCheck, Login, OnboardingProfile, Settings y la pantalla post-minijuego).
+        /// (EmotionCheck, Login, OnboardingProfile, Settings, Notifications, Who5, Consent y la pantalla post-minijuego).
         /// Usa _visualRoot para no desactivar el GameObject raíz y preservar la suscripción al EventBus.
         /// En cualquier otro estado lo muestra y actualiza el icono del botón central.
         /// </summary>
@@ -135,12 +141,13 @@ namespace Lutra.UI.Components
                        || state == AppState.OnboardingProfile
                        || state == AppState.Register
                        || state == AppState.Settings
+                       || state == AppState.Notifications
+                       || state == AppState.Who5
+                       || state == AppState.Consent
                        || state == AppState.MinigameActive;
 
-            if (_visualRoot != null)
-                _visualRoot.SetActive(!hidden);
-            else
-                gameObject.SetActive(!hidden);
+            _hiddenByState = hidden;
+            _setVisible(!hidden);
 
             if (hidden) return;
 
@@ -149,6 +156,16 @@ namespace Lutra.UI.Components
 
             if (_centerButtonLabel != null)
                 _centerButtonLabel.text = (state == AppState.MainMenu) ? "Qué tal?" : "Menú";
+        }
+
+        private void _onVisibilityRequested(bool visible) => _setVisible(visible && !_hiddenByState);
+
+        private void _setVisible(bool visible)
+        {
+            if (_visualRoot != null)
+                _visualRoot.SetActive(visible);
+            else
+                gameObject.SetActive(visible);
         }
 
         /// <summary>

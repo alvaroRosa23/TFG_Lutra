@@ -3,15 +3,14 @@
 ## Features/Auth
 
 ### LoginController + LoginScreen + LoginView
-- Tras login correcto con perfil: llama a `ThemeManager.SetActiveCulture(profile.Culture)`, sincroniza diario desde Firestore → comprueba check-in → navega
-- `_restoreDiaryFromFirestore`: inserta en SQLite las entradas de Firestore que no existan localmente (nunca sobreescribe)
-- Al restaurar check-in de Firestore: aplica `ThemeManager.ApplyTheme(emotion)` y crea placeholder en SQLite
+- Tras login correcto con perfil: llama a `ThemeManager.SetActiveCulture(profile.Culture)`, `CloudSync.SyncAllAsync` (todo: diario, emociones, partidas, estrellas, inventario, monedas, preferencias) → comprueba check-in → navega
+- Perfil local de otra cuenta → `DeleteAllData` antes de restaurar
 
 ### RegisterController + RegisterScreen + RegisterView
 Registro Firebase → navega a OnboardingProfile.
 
 ### OnboardingProfileController + Screen + View
-5 pasos: nombre/apellido, fecha de nacimiento, cultura, hobbies, resumen; guarda en SQLite y Firestore.
+5 pasos: nombre/apellido, fecha de nacimiento, cultura, hobbies, resumen; guarda en SQLite y crea el perfil en Firestore con el saldo inicial (`SaveUserProfile(profile, includeCoins: true)`, sin esperar).
 - `_finishOnboarding`: llama a `ThemeManager.SetActiveCulture(profile.Culture)` tras guardar el perfil, antes de navegar a `EmotionCheck`
 
 ### OnboardingProfileData
@@ -28,11 +27,13 @@ DTO temporal entre pasos del onboarding.
 
 ### EmotionCheckController
 - `OpenDayCheck()` / `OpenMomentCheck()` — puntos de entrada diferenciados
+- Tras guardar un check-in de Día: `SupportProtocol.CheckLowMoodStreak()` (protocolo de apoyo)
 - `OnConfirmClicked`: si `IsMorningCheck=true` y existe registro de hoy → `UpdateEmotion`; si no → `RegisterCheckIn`; si `IsMorningCheck=false` → `SaveEmotion` sin tocar racha
-- Guarda en Firestore (`SaveLastCheckIn`) y emite `EmitEmotionRegistered` + `EmitCurrentEmotionChanged` (después de transición a MainMenu para que la pantalla ya esté suscrita)
+- Marca el último check-in en Firestore (`SaveLastCheckIn`, sin esperar; el registro completo lo sube DataRepository) y emite `EmitEmotionRegistered` + `EmitCurrentEmotionChanged` (después de transición a MainMenu para que la pantalla ya esté suscrita)
 
 ### EmotionCheckView
 Tags de emoción como radio buttons (seleccionar uno deselecciona los demás de ambos contenedores).
+Por eso `SelectedEmotionTags` contiene solo la emoción elegida (repite `EmotionType`). Motivos: hobbies del perfil (nombre del enum) + fijos (`MotiveTags.Fixed`) + "Otro" con texto libre.
 
 ### EmotionTagButton
 Tag seleccionable reutilizable.
@@ -48,16 +49,21 @@ IService, ScriptableObject.
 Delega en `DiaryController.OpenDiary()` al enfocarse.
 
 ### DiaryController
-- Al guardar: `SaveDiaryEntry` en SQLite, luego `_syncEntryToFirestore` fire-and-forget
-- `_syncEntryToFirestore`: comprueba `Auth.IsLoggedIn` antes de llamar a Firestore
-- Servicios lazy: `DataRepository`, `AuthManager`, `FirestoreManager`
+- Muestra las entradas **mes a mes** (de la más reciente a la más antigua dentro del mes). Flechas anterior/siguiente y etiqueta "Abril 2026" entre ellas. El historial va del mes de creación de la cuenta (`UserProfile.CreationDate`, o el de la entrada más antigua si es anterior) al mes actual. Mes vacío: "No hubo entradas este mes". Puede haber varias entradas el mismo día.
+- La búsqueda busca en todos los meses (con texto, la etiqueta muestra "Resultados" y las flechas se desactivan).
+- Al abrir el diario se muestra el mes actual; tras guardar, el mes de la entrada guardada.
+- Editor (nueva entrada o edición): oculta la barra inferior con `EventBus.EmitNavBarVisibilityRequested(false)`; al volver a la lista la muestra.
+- Al guardar: `SaveDiaryEntry` en SQLite (DataRepository la sube sola a Firestore con su `RemoteId`). La recompensa diaria solo se da con entradas nuevas, no al editar.
+- Borrar: diálogo de confirmación → `Repo.DeleteDiaryEntry` (SQLite + marcador de borrado en Firestore, que borra la entrada en los demás dispositivos al sincronizar).
+- Servicio lazy: `DataRepository`
 
 ### DiaryView
-`ShowMainView()` / `ShowEditorView(entry)` / `RefreshEntries(list)` / `GetTitle()` / `GetContent()`.
+`ShowMainView()` / `ShowEditorView(entry)` / `RefreshEntries(list, emptyMessage)` / `SetMonthNavigation(label, canPrev, canNext)` / `ShowDeleteConfirm(entry)` / `HideDeleteConfirm()` / `ClearSearch()` / `GetTitle()` / `GetContent()`.
+- Campos: `_previousMonthButton`, `_nextMonthButton`, `_monthLabel`, `_deleteConfirmPanel`, `_deleteConfirmLabel`, `_deleteConfirmButton`, `_deleteCancelButton`.
 - `_getEmotionColor(mood)` — mapa hardcoded de EmotionType a hex color para el punto de color de las tarjetas
 
 ### DiaryEntryCard
-`SetupCard(entry, emotionColor)`; muestra título, fecha, preview (80 chars), punto de color; `OnCardClicked` action.
+`SetupCard(entry, emotionColor)`; muestra título, fecha, preview (80 chars), punto de color. La tarjeta **no** es pulsable: botones `_editButton` / `_deleteButton` a la izquierda del punto de emoción → `OnEditClicked` / `OnDeleteClicked`.
 
 ### DiaryEntryPromptData
 ScriptableObject con 10 prompts de escritura.
@@ -72,7 +78,7 @@ Habitación 2D decorable con tienda, inventario y sistema de colocación.
 **SafeZoneController** — gestiona inventario (`List<InventoryItem>`), compra con confirmación, colocación tap-to-place y drag-and-drop, y venta al 50%.
 - Inspector: `_view` (SafeZoneView), `_allItems` (SafeZoneItem[])
 - `OpenSafeZone()` — carga inventario, desbloquea ítems por defecto y por racha, refresca vista
-- Flujo compra: `_onBuyRequested` → `ShowConfirmBuyDialog(item, currentCoins, coinsAfter)` → `_onBuyConfirmed` → SpendCoins + UnlockItem + sync Firestore
+- Flujo compra: `_onBuyRequested` → `ShowConfirmBuyDialog(item, currentCoins, coinsAfter)` → `_onBuyConfirmed` → SpendCoins + UnlockItem (DataRepository sube ambos a Firestore)
 - Flujo colocación (popup): tap en ítem de inventario → popup flotante → "Colocar" → `_onPlaceRequested` → `EnterPlacementMode` → tap en PlacementPoint → `_onPlacementConfirmed(index)` → SetItemPlacement
 - Flujo colocación (drag): `DraggableItem` sobre `PlacementPoint` → `OnDropReceived(index, itemId)` → SetItemPlacement
 - Flujo quitar de habitación: `_onRoomItemTapped(index)` → `ShowRoomItemOptions` → "Guardar" → `_onRemoveConfirmed` → SetItemPlacement(false)
@@ -172,6 +178,7 @@ Pantalla post-minijuego; `AppState.MinigameActive`.
 - Campos: `_titleLabel`, `_scoreLabel` ("Puntuación: N", 0-100), `_recordLabel`, `_newRecordBadge` (GameObject), `_durationLabel` (`ChartsCalculator.FormatDuration`), `_coinsLabel`, `_messageLabel` (mensaje según `EmotionBefore`)
 - Botones de emoción (`_emotionButtons` + `_emotionTypes`, mismo índice) → guarda `EmotionAfter` con `DataRepository.UpdateMinigameSession` y resalta el seleccionado
 - `_playAgainButton` → `TransitionTo(Minigames)` + `MinigameLoader.LoadMinigame` (con la emoción elegida o la previa); `_backButton` → `TransitionTo(Minigames)`
+- Caritas (`_moodButtons` + `_moodButtonImages`, índice 0 = muy mal … 4 = muy bien) → guarda `MoodAfter` (1-5) con `UpdateMinigameSession`. Los botones de emoción se mantienen. `MoodBefore` no se pregunta: lo rellena `MinigameLoader` con `GetLatestMood` (`docs/METRICS.md` §2.2 y §4.6)
 
 ---
 
@@ -192,11 +199,78 @@ Clase estática pura.
 ### ChartPeriod
 Enum `Week`, `Month`, `AllTime`; definido en `ChartsController.cs`.
 
+### Report (`Features/Charts/Report/`)
+Motor de métricas del seguimiento (`docs/METRICS.md` §4). Lo usarán la nueva pantalla de Estadísticas (Fase 6) y el informe (Fase 7).
+- `ReportInput` → `ReportCalculator.Calculate` (clase pura, con tests) → `ReportData` (ánimo, dinámica, perfil emocional, motivos, patrones, minijuegos, diario, WHO-5, adherencia, activaciones de apoyo).
+- `ReportDataLoader.LoadAsync(from, to)`: reúne los datos de `DataRepository`, el periodo anterior, las rachas y el diccionario, y calcula.
+- `DiaryLexicon` + `DiaryLanguageAnalyzer`: análisis del lenguaje del diario con `Assets/Resources/DiaryLexicon_es.txt`.
+
+### WeeklySummaryBuilder
+Clase pura: texto del resumen semanal del centro de notificaciones (`docs/NOTIFICATION_CENTER.md` §9). `GetPreviousWeekMonday(today)`, `BuildBody(monday, week, previousWeek, sessions)` → null si hay menos de 3 check-ins de Día.
+
+### Estado actual y rediseño planificado
+Lo que muestra ahora `ChartsView`: puntos de la emoción diaria (eje Y = índice del enum), mapa de calor del mes actual (no sigue el periodo), racha actual/máxima, total de check-ins, emoción más frecuente y minijuego más beneficioso (con `.ToString()`, en inglés) y duración media de sesión.
+Limitaciones conocidas: incluye placeholders restaurados, el impacto de minijuegos es la resta de índices `EmotionAfter − EmotionBefore` (≈ 0 cuando el usuario no elige emoción) y `GenerateWeeklyReport()` no se llama desde ningún sitio.
+Ya corregido (Fase 1): usa `GetUserEmotionsForPeriod` (sin placeholders) y `GetSessionsForPeriod`, y los nombres se muestran en español (`ToDisplayName()`).
+Rediseño completo, métricas nuevas y exportación del informe: `docs/PROFESSIONAL_REPORT.md` y `docs/METRICS.md`; tareas en `docs/ROADMAP.md`.
+
+---
+
+## Features/Notifications
+
+Centro de notificaciones (`AppState.Notifications`). Especificación completa en `docs/NOTIFICATION_CENTER.md`.
+
+### NotificationsScreen
+`UIScreen`; `OnScreenFocused` → `NotificationsController.OpenNotifications()`. La barra inferior se oculta.
+
+### NotificationsController
+Carga ancladas y la primera página (30, pide una más para saber si hay otra), marca como leídas las no ancladas al abrir y pagina con "Cargar más". Atrás → MainMenu. Acción de anclada según `NotificationType`: `Who5Available` → `AppState.Who5`.
+
+### NotificationsView
+Campos: `_backButton`, `_pinnedSection`, `_pinnedContainer`, `_pinnedCardPrefab`, `_listContainer`, `_cardPrefab`, `_groupHeaderPrefab`, `_loadMoreButton`, `_emptyState` y sprites opcionales por tipo/origen. Agrupa por "Hoy", "Ayer", "Esta semana" y fecha. Eventos: `OnBackRequested`, `OnLoadMoreRequested`, `OnPinnedActionRequested`.
+
+### NotificationCard
+Icono, título, cuerpo, hora, `_unreadDot` y `_actionButton`/`_actionLabel` opcionales. `Setup(notification, icon, timeText, actionText)`.
+
+### NotificationTimeFormatter
+Clase pura: `GroupLabel(createdAt, today)` y `TimeText(createdAt, today)`.
+
+---
+
+## Features/Who5
+
+Cuestionario de bienestar WHO-5 (`AppState.Who5`). Especificación en `docs/PROFESSIONAL_REPORT.md` §3.
+
+### Who5Questionnaire
+Clase pura: `Items`, `Options` (etiqueta + valor 5…0), `RawScore`, `ToIndex`, `GetAvailableSince(profileCreated, lastCompletedAt, today)`, `NextAvailableDate`, `NotificationRemoteId` / `TryParseAvailableSince`, constantes (`IntervalDays` 14, `CoinReward` 20, puntos de corte 50 / 28 / 10).
+
+### Who5Screen
+`UIScreen`; `OnScreenFocused` → `Who5Controller.OpenQuestionnaire()`; `OnScreenUnfocused` → `DiscardAnswers()`.
+
+### Who5Controller
+Estado de las 5 respuestas (índice de opción), navegación entre ítems y envío: guarda `ScaleResponse`, resuelve la anclada, da 20 monedas (`RewardGrant`), programa el siguiente aviso y muestra el agradecimiento. Cerrar o "Listo" → `AppState.Notifications`.
+
+### Who5View
+Paneles `_introPanel`, `_questionPanel`, `_thanksPanel`; 6 `_optionButtons` + `_optionLabels`; `_previousButton`, `_nextButton` ("Siguiente"/"Enviar"), `_closeButton`, `_doneButton`. Eventos `OnStartRequested`, `OnOptionSelected(int)`, `OnPreviousRequested`, `OnNextRequested`, `OnCloseRequested`, `OnDoneRequested`.
+
+---
+
+## Features/Consent
+
+Consentimiento de datos de salud (`AppState.Consent`). Especificación en `docs/PROFESSIONAL_REPORT.md` §6.2; lógica de navegación en `ConsentGate`.
+
+### ConsentScreen / ConsentController / ConsentView / ConsentTexts
+- `ConsentScreen.OnScreenFocused` → `ConsentController.OpenConsent()` (rellena textos, casilla obligatoria desmarcada y la del diario marcada).
+- Aceptar → `ConsentGate.SaveConsent(diaryAnalysis)` → `TransitionTo(ConsentGate.PendingTarget)`. No acepto → `AuthManager.Logout()` + toast + Login.
+- `ConsentView`: `_titleLabel`, `_bodyLabel` (rich text), `_requiredToggle` / `_requiredLabel`, `_diaryAnalysisToggle` / `_diaryAnalysisLabel`, `_continueButton` (solo activo con la obligatoria), `_declineButton`.
+- `ConsentTexts`: todos los textos. Si cambian, subir `ConsentGate.CurrentVersion`.
+
 ---
 
 ## Features/Settings
 
 `SettingsController`, `SettingsView`, `SettingsScreen` — `AppState.Settings`.
+- Ayuda y privacidad: `_helpResourcesButton` → `SupportDialog.ShowResources()`; `_diaryAnalysisToggle` → `ConsentGate.SetDiaryAnalysis` (se carga del perfil en `OpenSettings`).
 
 ---
 

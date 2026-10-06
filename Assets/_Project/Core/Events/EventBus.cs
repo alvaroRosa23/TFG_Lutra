@@ -58,9 +58,28 @@ namespace Lutra.Core.Events
         public static event Action<string, RewardType> OnRewardEarned;
         public static event Action<RewardDefinition>   OnRewardUnlocked;
 
+        /// <summary>
+        /// Recompensa entregada (monedas y/o ítem). Toda entrega nueva debe emitirlo para que
+        /// aparezca en el centro de notificaciones. La sincronización con Firestore no lo emite.
+        /// </summary>
+        public static event Action<RewardGrant> OnRewardGranted;
+
+        // ── Centro de notificaciones ───────────────────────────────────
+
+        /// <summary>Cambió la bandeja; true = hay algo pendiente (la "!" del menú principal).</summary>
+        public static event Action<bool> OnNotificationsChanged;
+
         // ── Modal de emoción ───────────────────────────────────────────
 
         public static event Action OnEmotionModalRequested;
+
+        // ── Barra de navegación ────────────────────────────────────────
+
+        /// <summary>
+        /// Oculta (false) o vuelve a mostrar (true) la barra inferior dentro de la pantalla actual,
+        /// p. ej. en el editor del diario. Al cambiar de pantalla manda de nuevo el estado.
+        /// </summary>
+        public static event Action<bool> OnNavBarVisibilityRequested;
 
         // ── Métodos de emisión ─────────────────────────────────────────
 
@@ -77,7 +96,10 @@ namespace Lutra.Core.Events
         public static void EmitSettingsChanged(AppSettings settings)        => _safeInvoke(OnSettingsChanged, settings, nameof(OnSettingsChanged));
         public static void EmitRewardEarned(string itemId, RewardType type) => _safeInvoke(OnRewardEarned, itemId, type, nameof(OnRewardEarned));
         public static void EmitRewardUnlocked(RewardDefinition reward)      => _safeInvoke(OnRewardUnlocked, reward, nameof(OnRewardUnlocked));
+        public static void EmitRewardGranted(RewardGrant grant)             => _safeInvoke(OnRewardGranted, grant, nameof(OnRewardGranted));
+        public static void EmitNotificationsChanged(bool needsAttention)    => _safeInvoke(OnNotificationsChanged, needsAttention, nameof(OnNotificationsChanged));
         public static void EmitEmotionModalRequested()                       => _safeInvoke(OnEmotionModalRequested, nameof(OnEmotionModalRequested));
+        public static void EmitNavBarVisibilityRequested(bool visible)       => _safeInvoke(OnNavBarVisibilityRequested, visible, nameof(OnNavBarVisibilityRequested));
 
         // ── Limpieza ───────────────────────────────────────────────────
 
@@ -96,7 +118,10 @@ namespace Lutra.Core.Events
             OnSettingsChanged       = null;
             OnRewardEarned          = null;
             OnRewardUnlocked        = null;
+            OnRewardGranted         = null;
+            OnNotificationsChanged  = null;
             OnEmotionModalRequested = null;
+            OnNavBarVisibilityRequested = null;
         }
 
         // ── Helpers de invocación segura ───────────────────────────────

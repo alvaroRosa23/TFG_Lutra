@@ -97,6 +97,7 @@ namespace Lutra.Minigames
         [SerializeField] private Button     _exitCancelButton;
 
         public event Action OnReleaseClicked;
+        /// <summary>La estrella empieza a subir hacia el cielo.</summary>
         public event Action OnStarReleased;
         public event Action OnBookRequested;
         public event Action OnExitRequested;
@@ -112,6 +113,9 @@ namespace Lutra.Minigames
         private float   _zoomKick;
         private Vector2 _zoomPoint;
 
+        private float _flashFadeSeconds;
+        private float _flashFadeLeft;
+
         private Color _vignetteColor;
         private float _vignetteBase;
         private float _vignettePulse;
@@ -125,7 +129,7 @@ namespace Lutra.Minigames
             if (_exitButton != null)        _exitButton.onClick.AddListener(() => OnExitRequested?.Invoke());
             if (_exitConfirmButton != null) _exitConfirmButton.onClick.AddListener(() => OnExitConfirmed?.Invoke());
             if (_exitCancelButton != null)  _exitCancelButton.onClick.AddListener(() => OnExitCancelled?.Invoke());
-            if (_releaseDrag != null)       _releaseDrag.OnReleased += _onReleaseDragFinished;
+            if (_releaseDrag != null)       _releaseDrag.OnLaunched += _onReleaseDragLaunched;
 
             if (_messageLabel != null)
             {
@@ -145,7 +149,7 @@ namespace Lutra.Minigames
 
         private void OnDestroy()
         {
-            if (_releaseDrag != null) _releaseDrag.OnReleased -= _onReleaseDragFinished;
+            if (_releaseDrag != null) _releaseDrag.OnLaunched -= _onReleaseDragLaunched;
 
             OnReleaseClicked = null;
             OnStarReleased   = null;
@@ -299,6 +303,25 @@ namespace Lutra.Minigames
 
         public void SetWhiteFlash(float alpha)
         {
+            _flashFadeLeft = 0f;
+            _applyWhiteFlash(alpha);
+        }
+
+        /// <summary>Desvanece el destello blanco por su cuenta (independiente de la fase del juego).</summary>
+        public void FadeOutWhiteFlash(float seconds)
+        {
+            if (seconds <= 0f)
+            {
+                SetWhiteFlash(0f);
+                return;
+            }
+
+            _flashFadeSeconds = seconds;
+            _flashFadeLeft    = seconds;
+        }
+
+        private void _applyWhiteFlash(float alpha)
+        {
             if (_whiteFlash == null) return;
             _whiteFlash.gameObject.SetActive(alpha > 0f);
             _whiteFlash.color = new Color(1f, 1f, 1f, Mathf.Clamp01(alpha));
@@ -333,7 +356,10 @@ namespace Lutra.Minigames
             if (_revealPanel != null) _revealPanel.SetActive(false);
         }
 
-        /// <summary>Oculta todo menos la estrella y el texto; el jugador la arrastra hacia arriba.</summary>
+        /// <summary>
+        /// Muestra el panel de liberación (con fondo propio que tapa la partida): solo la estrella y
+        /// el texto; el jugador la arrastra hacia arriba.
+        /// </summary>
         public void BeginRelease(StarDefinition star)
         {
             HideReveal();
@@ -367,6 +393,12 @@ namespace Lutra.Minigames
                 _messageGroup.alpha = Mathf.Clamp01(_messageTimer / (_messageSeconds * 0.4f));
             }
 
+            if (_flashFadeLeft > 0f)
+            {
+                _flashFadeLeft = Mathf.Max(0f, _flashFadeLeft - deltaTime);
+                _applyWhiteFlash(_flashFadeLeft / _flashFadeSeconds);
+            }
+
             // Zoom suavizado + golpe al superar un umbral
             _zoomKick    = Mathf.Lerp(_zoomKick, 0f, 1f - Mathf.Exp(-7f * deltaTime));
             _zoomCurrent = Mathf.Lerp(_zoomCurrent, _zoomTarget, 1f - Mathf.Exp(-_zoomSmoothing * deltaTime));
@@ -379,7 +411,8 @@ namespace Lutra.Minigames
 
         // ── Helpers privados ───────────────────────────────────────────
 
-        private void _onReleaseDragFinished() => OnStarReleased?.Invoke();
+        // Se avisa al empezar a subir (no al terminar) para que el destello se mezcle con la subida
+        private void _onReleaseDragLaunched() => OnStarReleased?.Invoke();
 
         /// <summary>
         /// Escala _zoomRoot manteniendo _zoomPoint (coordenadas locales respecto al pivote, que no

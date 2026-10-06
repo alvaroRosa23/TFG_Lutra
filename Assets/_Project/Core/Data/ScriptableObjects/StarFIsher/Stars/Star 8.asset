@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.75
-  age: 7500M
+  weight: 0.75 masas solares
+  age: "7500M a\xF1os"
   description: "Rumor es la estrella refugio.Sus planetas la adoran porque con ella
     todo es estable y seguro. Muchos creen que alrededor de estrellas como Rumor
     podr\xEDa haber vida, y a ella eso la hace sonre\xEDr."
-  phrase: "\"Ofrecer calma y seguridad a quien lo necesita tambi\xE9n es un don\""
+  phrase: "Ofrecer calma y seguridad a quien lo necesita tambi\xE9n es un don."

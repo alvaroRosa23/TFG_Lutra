@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 28
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 29
-  displayName: 
+  displayName: "Matusal\xE9n"
   rarity: 4
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 0.8 masas solares
+  age: "13000M a\xF1os"
+  description: "Matusal\xE9n naci\xF3 cuando el universo era un beb\xE9. Ha visto
+    formarse galaxias, nacer y morir miles de estrellas... Las estrellas j\xF3venes
+    van a escucharla cuando sienten que no pueden m\xE1s. "
+  phrase: "Si miras atr\xE1s, puedes ver que has superado d\xEDas que cre\xEDas imposibles.
+    Esa misma fuerza sigue en ti para lo que venga."

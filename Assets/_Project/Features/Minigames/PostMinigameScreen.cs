@@ -18,7 +18,7 @@ namespace Lutra.Features.Minigames
     /// Pantalla de resultados que aparece al terminar un minijuego (AppState.MinigameActive).
     /// Lee MinigameLoader.LastOutcome al recibir el foco (la sesión ya está guardada) y muestra
     /// puntuación, récord, duración, monedas y un mensaje positivo. El usuario puede registrar
-    /// cómo se siente (se guarda en la sesión como EmotionAfter), jugar otra vez o volver.
+    /// su ánimo con las 5 caritas (MoodAfter) y cómo se siente (EmotionAfter), jugar otra vez o volver.
     /// </summary>
     public class PostMinigameScreen : UIScreen
     {
@@ -36,6 +36,12 @@ namespace Lutra.Features.Minigames
         [SerializeField] private TextMeshProUGUI _durationLabel;
         [SerializeField] private TextMeshProUGUI _coinsLabel;
         [SerializeField] private TextMeshProUGUI _messageLabel;
+
+        [Header("Ánimo post-sesión (5 caritas: índice 0 = muy mal … 4 = muy bien)")]
+        [SerializeField] private Button[] _moodButtons;
+        [SerializeField] private Image[]  _moodButtonImages;
+        [SerializeField] private Color    _moodSelectedColor = new Color(1f, 0.85f, 0.4f, 1f);
+        [SerializeField] private Color    _moodNormalColor   = Color.white;
 
         [Header("Emoción post-sesión (mismo índice)")]
         [SerializeField] private Button[]      _emotionButtons;
@@ -82,6 +88,7 @@ namespace Lutra.Features.Minigames
 
         private MinigameOutcome _outcome;
         private EmotionType?    _selectedEmotion;
+        private int?            _selectedMood;
         private bool            _navigating;
 
         // ── Unity lifecycle ────────────────────────────────────────────
@@ -89,6 +96,7 @@ namespace Lutra.Features.Minigames
         protected override void Awake()
         {
             base.Awake();
+            _registerMoodButtons();
             _registerEmotionButtons();
 
             _playAgainButton?.onClick.AddListener(_onPlayAgainClicked);
@@ -97,6 +105,10 @@ namespace Lutra.Features.Minigames
 
         private void OnDestroy()
         {
+            if (_moodButtons != null)
+                foreach (var btn in _moodButtons)
+                    btn?.onClick.RemoveAllListeners();
+
             if (_emotionButtons != null)
                 foreach (var btn in _emotionButtons)
                     btn?.onClick.RemoveAllListeners();
@@ -114,6 +126,8 @@ namespace Lutra.Features.Minigames
         {
             _navigating = false;
             _selectedEmotion = null;
+            _selectedMood    = null;
+            _refreshMoodButtons();
             _refreshEmotionButtons();
 
             ShowOutcome(Loader?.LastOutcome);
@@ -147,6 +161,30 @@ namespace Lutra.Features.Minigames
         }
 
         // ── Handlers ───────────────────────────────────────────────────
+
+        private void _onMoodSelected(int level)
+        {
+            _selectedMood = level;
+            _refreshMoodButtons();
+            _ = _safeSaveMoodAfter(level);
+        }
+
+        private async Task _safeSaveMoodAfter(int level)
+        {
+            try
+            {
+                var session = _outcome?.Session;
+                if (session == null) return;
+
+                session.MoodAfter = level;
+                await Repo.UpdateMinigameSession(session);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PostMinigameScreen] _safeSaveMoodAfter: {ex.Message}");
+                ToastNotification.ShowError("No se pudo guardar cómo te sientes");
+            }
+        }
 
         private void _onEmotionSelected(EmotionType emotion)
         {
@@ -225,6 +263,29 @@ namespace Lutra.Features.Minigames
                 : _genericMessages;
 
             return pool[UnityEngine.Random.Range(0, pool.Length)];
+        }
+
+        private void _registerMoodButtons()
+        {
+            if (_moodButtons == null) return;
+
+            for (int i = 0; i < _moodButtons.Length; i++)
+            {
+                int level = i + 1;
+                _moodButtons[i]?.onClick.AddListener(() => _onMoodSelected(level));
+            }
+        }
+
+        private void _refreshMoodButtons()
+        {
+            if (_moodButtonImages == null) return;
+
+            for (int i = 0; i < _moodButtonImages.Length; i++)
+            {
+                if (_moodButtonImages[i] == null) continue;
+                bool selected = _selectedMood.HasValue && _selectedMood.Value == i + 1;
+                _moodButtonImages[i].color = selected ? _moodSelectedColor : _moodNormalColor;
+            }
         }
 
         private void _registerEmotionButtons()

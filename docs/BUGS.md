@@ -6,6 +6,18 @@
 - Eliminar `UnlockedItem.cs` (en `Core/Data/Models/`) — reemplazado por `InventoryItem`; el archivo antiguo no se usa pero compila sin errores
 - **Investigar bug tab Tienda en SafeZone**: al pulsar el tab de Tienda oculta todo excepto BottomNavBar. Causa probable: `_roomPanel` y `_shopPanel` no son hermanos en la jerarquía (ver sección de bugs SafeZone al final de este archivo)
 
+## Pendiente — Hitos de racha no entregan la decoración
+
+`StreakManager._checkMilestoneRewards` emite `EventBus.EmitRewardEarned("streak_reward_{7|14|30}d", RoomDecoration)`, pero **ningún sistema se suscribe a `OnRewardEarned`** y no existen ítems con esos ids. El usuario recibe las monedas del hito (20/50/100) pero nunca la decoración. Opciones: crear los `SafeZoneItem` y desbloquearlos con `DataRepository.UnlockItem` en el propio `StreakManager` (y añadir el ítem a su `RewardGrant`), o quitar la emisión. Mientras tanto, la notificación del hito solo menciona las monedas.
+
+## Pendiente — Estadísticas (se corrige en el rediseño, `docs/ROADMAP.md` fases 1 y 6)
+
+- ~~Los placeholders restaurados cuentan en las estadísticas~~ → resuelto: `ChartsController` usa `GetUserEmotionsForPeriod`
+- ~~`ChartsView` muestra emoción y minijuego en inglés~~ → resuelto: `ToDisplayName()`
+- Impacto de minijuegos sesgado a 0: `EmotionAfter = EmotionBefore` por defecto (`MinigameResult`) y se calcula restando índices del enum. Los datos correctos (`MoodBefore`/`MoodAfter`) ya se guardan; falta usarlos en `ReportCalculator` (fase 5)
+- El mapa de calor siempre muestra el mes actual, sea cual sea el periodo
+- `ChartsController.GenerateWeeklyReport()` no se llama desde ningún sitio
+
 ## Sistema SafeZone implementado
 
 **Nuevos archivos:**

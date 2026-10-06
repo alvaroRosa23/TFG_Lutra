@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: Star 26
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 27
-  displayName: 
+  displayName: Latido
   rarity: 3
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1.4 masas solares
+  age: "1M a\xF1os"
+  description: "Latido es peque\xF1a, pero gira cientos de veces por segundo y lanza
+    haces de luz que cruzan la galaxia. Nadie dir\xEDa que tanta fuerza cabe en algo
+    tan peque\xF1o. "
+  phrase: "Tu fuerza no se mide por c\xF3mo te ves por fuera. Dentro de ti hay m\xE1s
+    capacidad de la que imaginas."

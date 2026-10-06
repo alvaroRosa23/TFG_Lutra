@@ -13,12 +13,13 @@ MonoBehaviour:
   m_Name: Star 20
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 21
-  displayName: 
+  displayName: Aurora
   rarity: 2
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 1 masas solares
+  age: "10000M a\xF1os"
+  description: "Aurora es la abuela del vecindario. Se ha hecho enorme, roja y lenta.
+    Le encanta contar historias de estrellas que conoci\xF3 y que ya no est\xE1n."
+  phrase: "Tus experiencias, tambi\xE9n las dif\xEDciles, forman parte de tu luz."

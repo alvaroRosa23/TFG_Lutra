@@ -6,6 +6,7 @@ using Lutra.Core.Architecture;
 using Lutra.Core.Data.Models;
 using Lutra.Core.Data.Persistence;
 using Lutra.Core.Systems;
+using Lutra.UI.Components;
 
 namespace Lutra.Features.Settings
 {
@@ -184,6 +185,8 @@ namespace Lutra.Features.Settings
             _view.OnExportDataClicked           += _onExportDataClickedHandler;
             _view.OnDeleteDataConfirmed         += _onDeleteDataConfirmedHandler;
             _view.OnBackRequested               += _onBackRequestedHandler;
+            _view.OnHelpResourcesRequested      += SupportDialog.ShowResources;
+            _view.OnDiaryAnalysisChanged        += _onDiaryAnalysisChangedHandler;
         }
 
         private void _unsubscribeFromView()
@@ -202,6 +205,8 @@ namespace Lutra.Features.Settings
             _view.OnExportDataClicked           -= _onExportDataClickedHandler;
             _view.OnDeleteDataConfirmed         -= _onDeleteDataConfirmedHandler;
             _view.OnBackRequested               -= _onBackRequestedHandler;
+            _view.OnHelpResourcesRequested      -= SupportDialog.ShowResources;
+            _view.OnDiaryAnalysisChanged        -= _onDiaryAnalysisChangedHandler;
         }
 
         private async Task _loadProfileAsync()
@@ -210,7 +215,10 @@ namespace Lutra.Features.Settings
             {
                 var profile = await Repository.GetUserProfile();
                 if (profile != null)
+                {
                     _view?.LoadProfile(profile.Name, profile.Surname, profile.DateOfBirth, profile.Avatar);
+                    _view?.LoadDiaryAnalysis(ConsentGate.IsDiaryAnalysisEnabled(profile));
+                }
             }
             catch (Exception ex)
             {
@@ -244,6 +252,24 @@ namespace Lutra.Features.Settings
 
         private void _onDeleteDataConfirmedHandler()
             => _ = OnDeleteDataClicked();
+
+        private void _onDiaryAnalysisChangedHandler(bool enabled) => _ = _safeSetDiaryAnalysis(enabled);
+
+        private async Task _safeSetDiaryAnalysis(bool enabled)
+        {
+            try
+            {
+                await ConsentGate.SetDiaryAnalysis(enabled);
+                _view?.ShowFeedback(enabled
+                    ? "Análisis de escritura activado."
+                    : "Análisis de escritura desactivado: no aparecerá en tus informes.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SettingsController] _safeSetDiaryAnalysis: {ex.Message}");
+                _view?.ShowFeedback("No se pudo guardar el cambio.", isError: true);
+            }
+        }
 
         private void _onBackRequestedHandler()
             => AppStateMachine.Instance.TransitionTo(AppState.MainMenu);

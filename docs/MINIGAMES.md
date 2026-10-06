@@ -336,7 +336,11 @@ aparece "Suelta y espira" y no tocar nada hasta que vuelva a aparecer el primer 
 ### Métricas persistidas
 
 `perfect_breaths`, `good_breaths`, `off_rhythm_breaths`, `missed_jumps`, `air_corrections`,
-`avg_inhale`, `avg_exhale` (segundos, media de respiraciones aterrizadas), `best_perfect_streak`.
+`avg_inhale`, `avg_exhale` (segundos, media de respiraciones aterrizadas), `best_perfect_streak`,
+`breaths_per_minute` (60 / ciclo medio inspiración + espiración), `exhale_inhale_ratio` (suma espiraciones / suma
+inspiraciones), `breath_cv` (desviación típica muestral / media del ciclo; menor = más regular).
+El ritmo guía por defecto (4 s + 6 s) da 6 respiraciones/min y una relación espiración/inspiración de 1,5, lo
+que recomienda la literatura sobre respiración lenta (ver `docs/METRICS.md` §4.6).
 
 ### Parámetros ajustables
 

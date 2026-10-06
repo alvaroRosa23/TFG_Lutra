@@ -18,9 +18,9 @@ MonoBehaviour:
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 0.08
-  age: 1000M
+  weight: 0.08 masas solares
+  age: "1000M a\xF1os"
   description: "Chispa estuvo a punto de no ser estrella. Cuando lo consigui\xF3,
     se asust\xF3 de lo peque\xF1a que era al lado de las dem\xE1s, pero ella brilla
     con todas sus fuerzas cada d\xEDa"
-  phrase: "\"Los peque\xF1os logros tambi\xE9n son logros\""
+  phrase: "Los peque\xF1os logros tambi\xE9n son logros."

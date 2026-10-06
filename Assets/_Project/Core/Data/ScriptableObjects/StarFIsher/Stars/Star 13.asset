@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: Star 13
   m_EditorClassIdentifier: LutraCore::Lutra.Core.Data.ScriptableObjects.StarDefinition
   starId: 14
-  displayName: 
+  displayName: "C\xE9firo"
   rarity: 1
   isStreakSpecial: 0
   sprite: {fileID: 0}
   tint: {r: 1, g: 1, b: 1, a: 1}
-  weight: 
-  age: 
-  description: 
-  phrase: 
+  weight: 2 masas solares
+  age: "600M a\xF1os"
+  description: "C\xE9firo siempre estaba cargada: guardaba gas, polvo y todo lo que
+    pasaba cerca. Hasta que aprendi\xF3 a soltar. Ahora su viento estelar lleva al
+    espacio lo que ya no necesita."
+  phrase: No tienes que cargar con todo. Deja ir lo que te pesa.

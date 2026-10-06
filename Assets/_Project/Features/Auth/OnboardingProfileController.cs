@@ -157,26 +157,35 @@ namespace Lutra.Features.Auth
                     HobbiesJson    = JsonConvert.SerializeObject(_data.Hobbies)
                 };
 
-                await DataRepository.SaveUserProfile(profile);
+                await DataRepository.SaveUserProfile(profile, sync: false);
 
                 // Activar paleta cultural desde el primer check-in
                 ThemeManagerService.SetActiveCulture(profile.Culture);
 
-                try
-                {
-                    await ServiceLocator.Get<FirestoreManager>().SaveUserProfile(profile);
-                }
-                catch (Exception firestoreEx)
-                {
-                    Debug.LogWarning($"[OnboardingProfileController] Firestore no disponible, perfil solo local: {firestoreEx.Message}");
-                }
+                // Perfil nuevo en Firestore con el saldo inicial. Sin esperar: sin conexión
+                // Firestore lo encola y la pantalla no se queda bloqueada.
+                _ = _safeUploadNewProfile(profile);
 
                 Debug.Log("[OnboardingProfileController] Perfil guardado");
-                AppStateMachine.Instance.TransitionTo(AppState.EmotionCheck);
+
+                // Consentimiento de datos de salud antes del primer check-in
+                await ConsentGate.ContinueTo(AppState.EmotionCheck);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[OnboardingProfileController] _finishOnboarding: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        private async Task _safeUploadNewProfile(UserProfile profile)
+        {
+            try
+            {
+                await ServiceLocator.Get<FirestoreManager>().SaveUserProfile(profile, includeCoins: true);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[OnboardingProfileController] Firestore no disponible, perfil solo local: {ex.Message}");
             }
         }
     }

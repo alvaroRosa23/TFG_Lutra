@@ -30,6 +30,8 @@ namespace Lutra.Minigames
         private float _earned;
         private float _inhaleSum;
         private float _exhaleSum;
+        private float _cycleSum;        // suma de (inspiración + espiración) de cada respiración
+        private float _cycleSquaredSum; // para la desviación típica del ciclo (regularidad)
         private int   _perfectStreak;
         private int   _bestPerfectStreak;
 
@@ -45,6 +47,10 @@ namespace Lutra.Minigames
 
             _inhaleSum += inhaleSeconds;
             _exhaleSum += exhaleSeconds;
+
+            float cycle = inhaleSeconds + exhaleSeconds;
+            _cycleSum        += cycle;
+            _cycleSquaredSum += cycle * cycle;
             if (corrected) _corrections++;
 
             switch (quality)
@@ -102,11 +108,40 @@ namespace Lutra.Minigames
                 ["air_corrections"]     = _corrections,
                 ["avg_inhale"]          = _landed > 0 ? _inhaleSum / _landed : 0f,
                 ["avg_exhale"]          = _landed > 0 ? _exhaleSum / _landed : 0f,
-                ["best_perfect_streak"] = _bestPerfectStreak
+                ["best_perfect_streak"] = _bestPerfectStreak,
+                ["breaths_per_minute"]  = _breathsPerMinute(),
+                ["exhale_inhale_ratio"] = _inhaleSum > 0f ? _exhaleSum / _inhaleSum : 0f,
+                ["breath_cv"]           = _cycleCoefficientOfVariation()
             };
         }
 
         // ── Helpers privados ───────────────────────────────────────────
+
+        /// <summary>
+        /// Frecuencia respiratoria según el ciclo medio (inspiración + espiración). Con el ritmo
+        /// guía por defecto (4 s + 6 s) el objetivo es 6 respiraciones/min (ver docs/METRICS.md §4.6).
+        /// </summary>
+        private float _breathsPerMinute()
+        {
+            if (_landed == 0) return 0f;
+            float meanCycle = _cycleSum / _landed;
+            return meanCycle > 0f ? 60f / meanCycle : 0f;
+        }
+
+        /// <summary>
+        /// Coeficiente de variación del ciclo (desviación típica muestral / media).
+        /// Cuanto menor, más regular la respiración. 0 si hay menos de 2 respiraciones.
+        /// </summary>
+        private float _cycleCoefficientOfVariation()
+        {
+            if (_landed < 2) return 0f;
+
+            float mean     = _cycleSum / _landed;
+            float variance = (_cycleSquaredSum - _landed * mean * mean) / (_landed - 1);
+            if (mean <= 0f || variance <= 0f) return 0f;
+
+            return Mathf.Sqrt(variance) / mean;
+        }
 
         private BreathQuality _evaluate(float inhale, float exhale, bool corrected)
         {
