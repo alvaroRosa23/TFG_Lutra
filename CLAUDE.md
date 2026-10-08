@@ -139,6 +139,7 @@ Assets/
 | `TextMeshPro` | Todos los textos de la UI |
 | Firebase Auth + Firestore + Analytics | SDK instalado via `.unitypackage` |
 | URP 2D | Pipeline de renderizado |
+| `com.yasirkula.nativeshare` (git, MIT) | Menú nativo de compartir para el informe y la exportación de datos (`FileSharer`; define `NATIVE_SHARE` vía *version define* de `LutraCore.asmdef`). Requiere Git instalado |
 
 - `LutraCore.asmdef` referencias: `SQLiteNet`, `Unity.TextMeshPro`
 - `SQLite.asmdef` con `allowUnsafeCode: true`
@@ -219,12 +220,13 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 
 **Minijuegos**: Beatmaker implementado; BreathJump, FruitNinja y StarFisher con código listo (falta montar las escenas); 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
 
-**Estadísticas, informe profesional y centro de notificaciones** (en desarrollo, ver `docs/ROADMAP.md`): usuarios ≥ 18 años; un profesional usa Lutra con sus pacientes y el paciente exporta el informe (PDF + CSV). Antes de tocar `Features/Charts`, minijuegos (ánimo antes/después), recompensas o el diario, leer `docs/METRICS.md` y el registro de decisiones de `docs/ROADMAP.md`. Puntos clave:
+**Estadísticas, informe profesional y centro de notificaciones** (código de las fases 1-7 completo, con tests; falta montar las pantallas en Unity — lista en `docs/ROADMAP.md` → "Pasos en Unity y consola" — y la comprobación de edad ≥ 18): usuarios ≥ 18 años; un profesional usa Lutra con sus pacientes y el paciente exporta el informe (PDF + CSV). Antes de tocar `Features/Charts`, minijuegos (ánimo antes/después), recompensas o el diario, leer `docs/METRICS.md` y el registro de decisiones de `docs/ROADMAP.md`. Puntos clave:
 - Las estadísticas excluyen siempre los registros con `Source != RecordSource.User`
 - `IntensityLevel` es una copia de `MoodLevel`: no usarlo en métricas
 - Toda recompensa nueva debe emitir `EventBus.EmitRewardGranted` para que aparezca en el centro de notificaciones
 - `NotificationCenter` (bandeja dentro de la app) ≠ `NotificationManager` (push del sistema operativo)
-- Las métricas se calculan **solo** en `ReportCalculator` (no reimplementarlas en las vistas); el efecto de minijuegos usa `MinigameSession.IsValidForMoodEffect()`
+- Las métricas se calculan **solo** en `ReportCalculator` (no reimplementarlas en las vistas); los textos para el usuario en `StatsTextBuilder`; el efecto de minijuegos usa `MinigameSession.IsValidForMoodEffect()`
+- Compartir archivos siempre con `FileSharer.Share` (NativeShare en el móvil, carpeta en el editor)
 - Navegar a MainMenu / EmotionCheck tras login, arranque u onboarding con `ConsentGate.ContinueTo`, nunca con `TransitionTo` directo
 - Descartado hasta nuevo aviso: Affect Grid y sueño en el check-in. Pendiente: comprobación de edad ≥ 18
 

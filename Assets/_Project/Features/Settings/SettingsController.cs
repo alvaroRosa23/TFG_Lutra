@@ -140,7 +140,8 @@ namespace Lutra.Features.Settings
             try
             {
                 _view?.ShowFeedback("Exportando datos…");
-                await Settings.ExportUserData();
+                string path = await Settings.ExportUserData();
+                FileSharer.Share(new[] { path }, "Mis datos de Lutra", "Copia de todos mis datos de Lutra.");
                 _view?.ShowFeedback("Datos exportados correctamente.");
             }
             catch (Exception ex)

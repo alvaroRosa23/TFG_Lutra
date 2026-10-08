@@ -39,6 +39,10 @@ namespace Lutra.Features.Charts
         /// duración y termina justo antes de <paramref name="from"/>.
         /// </summary>
         public static async Task<ReportData> LoadAsync(DateTime from, DateTime to)
+            => ReportCalculator.Calculate(await BuildInputAsync(from, to));
+
+        /// <summary>Datos de entrada del periodo (también los usa la exportación para los CSV y las notas).</summary>
+        public static async Task<ReportInput> BuildInputAsync(DateTime from, DateTime to)
         {
             var repo    = ServiceLocator.Get<DataRepository>();
             var profile = await repo.GetUserProfile();
@@ -75,7 +79,7 @@ namespace Lutra.Features.Charts
                 input.LongestStreak = await streaks.GetLongestStreak();
             }
 
-            return ReportCalculator.Calculate(input);
+            return input;
         }
     }
 }

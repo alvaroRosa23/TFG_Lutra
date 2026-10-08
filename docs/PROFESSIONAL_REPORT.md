@@ -17,7 +17,7 @@ Las definiciones y fórmulas de cada métrica están en `docs/METRICS.md`; el pl
 
 ## 2. Pantalla de Estadísticas (usuario)
 
-`AppState.Charts` — se rehace `ChartsView`; `ChartsController` pasa a usar `ReportCalculator`.
+`AppState.Charts`. **Código implementado (Fase 6)**: `ChartsView` rehecho, `ChartsController` usa `ReportDataLoader`, textos en `StatsTextBuilder` (con tests). Falta montar la pantalla en Unity (`ROADMAP.md`).
 
 ### 2.1 Problemas actuales que se corrigen [ACTUAL]
 
@@ -35,10 +35,10 @@ Las definiciones y fórmulas de cada métrica están en `docs/METRICS.md`; el pl
 
 De arriba abajo (scroll vertical):
 
-1. **Selector de periodo:** Semana · Mes · Todo.
+1. **Selector de periodo:** Semana (últimos 7 días) · Mes (**últimos 30 días**, ventana móvil para que la comparación con el periodo anterior sea justa) · Todo (desde el alta).
 2. **Resumen:** ánimo medio (carita) + flecha de tendencia + frase ("Esta semana te has sentido mejor que la anterior").
-3. **Tu ánimo:** gráfico de línea 1–5 de la serie diaria, puntos coloreados por emoción (`EmotionTheme`) y media de 7 días.
-4. **Calendario:** mapa de calor del periodo — Semana: 7 celdas · Mes: calendario del mes · Todo: últimas 12 semanas. Celda gris = sin registro.
+3. **Tu ánimo:** gráfico de línea 1–5 de la serie diaria, puntos coloreados por emoción (`EmotionTheme`) y media de 7 días (línea clara; no se une a través de huecos de más de 7 días sin datos). Debajo, una leyenda fija explica ambas series.
+4. **Calendario:** mapa de calor del periodo, celdas alineadas de lunes a domingo — Semana: la semana natural en curso (lunes-domingo, una fila) · Mes: 30 días · Todo: últimas 12 semanas (tope fijo; no crece con el historial) con celdas reducidas (`_heatmapCompactScale`) a partir de 6 filas. La última fila se completa con celdas invisibles. Color de la emoción del check-in de Día; gris con una X = sin registro. Leyenda fija (8 emociones + "Sin registro") bajo el calendario y, opcionalmente, bajo el gráfico; las letras L-D se encogen junto a las columnas.
 5. **Tus emociones:** barras de distribución + "Has sentido X emociones distintas".
 6. **Estabilidad** (solo con ≥ 14 pares de días consecutivos): frase positiva ("Tu ánimo ha estado más estable que el mes pasado").
 7. **Qué influye en ti:** hasta 3 motivos con mayor diferencia de ánimo (↑ / ↓), mínimo 3 apariciones.
@@ -136,26 +136,30 @@ float     DurationSeconds  // desde el primer ítem hasta Enviar
 
 ## 4. Exportación del informe
 
+> **Código implementado (Fase 7)** en `Features/Charts/Export/`. Falta montar el panel en Unity y que Package Manager instale NativeShare (`ROADMAP.md`).
+
 ### 4.1 Flujo
 
 Estadísticas → **Exportar informe para mi profesional** → panel de exportación:
 
 | Opción | Defecto |
 |---|---|
-| Periodo | Últimos 30 días (otras: 7 días, 3 meses, todo, desde–hasta) |
+| Periodo | Últimos 30 días (otras: 7 días, 3 meses, todo). Por defecto sigue al periodo visible en Estadísticas. *El rango "desde–hasta" personalizado queda fuera por ahora.* |
 | Incluir notas y texto del diario | **Desmarcado** |
 | Incluir datos en bruto (CSV) | Marcado |
 
 → **Generar** → se crean los archivos en `Application.temporaryCachePath` → menú nativo de compartir (plugin **NativeShare**, licencia MIT) → el usuario elige destino (correo, WhatsApp, Drive…).
 
 - Nombres: `Lutra_Informe_yyyy-MM-dd.pdf` y `Lutra_Datos_yyyy-MM-dd.zip`.
-- Los archivos temporales se borran al volver a la app.
-- La exportación JSON actual de Ajustes (`SettingsManager.ExportUserData`) [ACTUAL] guarda en `persistentDataPath`, inaccesible para el usuario en móvil. Se mantiene como "Descargar todos mis datos" (derecho de portabilidad, RGPD art. 20), pero se comparte con NativeShare.
+- Los archivos se escriben en `temporaryCachePath/LutraExport` y se borran **al empezar la siguiente exportación** (no al volver a la app: el menú de compartir del sistema puede seguir leyéndolos). El sistema operativo también puede limpiar esa carpeta.
+- En el editor de Unity, en lugar del menú de compartir se abre la carpeta con los archivos.
+- La exportación JSON de Ajustes (`SettingsManager.ExportUserData`) incluye todos los datos del usuario y se comparte igual (derecho de portabilidad, RGPD art. 20).
 
 ### 4.2 Generación del PDF
 
 - Generador propio `PdfDocumentWriter` (PDF 1.4), sin dependencias: texto, líneas, rectángulos y polilíneas para los gráficos (vectoriales, nítidos al imprimir).
-- Fuentes estándar Helvetica / Helvetica-Bold con codificación WinAnsi: no hay que incrustarlas y cubren los caracteres del español (á, é, ñ, ü, ¿, ¡). Sin emojis.
+- Fuentes estándar Helvetica / Helvetica-Bold con codificación WinAnsi: no hay que incrustarlas y cubren los caracteres del español (á, é, ñ, ü, ¿, ¡). Sin emojis. Los símbolos matemáticos que no existen en WinAnsi se escriben con caracteres equivalentes (≤ → "<=", ≥ → ">=", ≈ → "~", − → "-").
+- El cálculo y la maquetación se ejecutan fuera del hilo principal (`Task.Run`) para no congelar la interfaz.
 - A4 vertical; pie con "Página N de M", fecha de generación y "Generado por Lutra".
 - Los contenidos se calculan en `ReportCalculator` (los mismos números que la pantalla de Estadísticas) y se maquetan en `ReportPdfBuilder`.
 
@@ -167,7 +171,7 @@ Cada cifra lleva su *n*; cada sección indica su nivel de evidencia (A / B / C).
 |---|---|---|
 | 0 | **Portada** | Nombre, edad, periodo, fecha de generación, días en la app. Aviso: "Datos autoinformados por el usuario. No es una herramienta diagnóstica." |
 | 1 | **Resumen** (1 página) | Adherencia · ánimo medio y tendencia vs periodo anterior · % días buenos/malos · emoción predominante · último WHO-5 y su cambio · minijuego con mejor efecto · **indicadores de atención**: rachas de ≥ 3 días con ánimo ≤ 2, WHO-5 ≤ 50 / ≤ 28, cambio ≥ 10 puntos, activaciones del protocolo de apoyo |
-| 2 | **Evolución del ánimo** (B) | Gráfico de la serie diaria + media de 7 días · tabla semanal (media, DE, n) · pendiente · variación intradía |
+| 2 | **Evolución del ánimo** (B) | Gráfico de la serie diaria + media de 7 días (cortada en huecos > 7 días) · tabla semanal (media, DE, n) · pendiente · variación intradía |
 | 3 | **Dinámica emocional** (B) | Inestabilidad (MSSD), inercia (autocorrelación), variabilidad (DE), comparadas con el periodo anterior. Nota metodológica breve con referencias |
 | 4 | **Perfil emocional** (B) | Distribución de las 8 emociones · balance de valencia · cuadrantes de activación derivados (indicado como aproximación teórica) · emodiversidad |
 | 5 | **Contexto y motivos** (B) | Tabla por motivo: frecuencia, ánimo con/sin, diferencia, emoción más frecuente. Aviso: asociación, no causalidad |

@@ -185,7 +185,7 @@ Escucha EventBus, programa aviso si racha ≥ 3 sin check-in.
 
 ### SettingsManager
 Preferencias de usuario: notificaciones, apariencia, exportación y borrado de datos.
-- `ExportUserData()` serializa perfil, emociones y diario a `persistentDataPath/lutra_export.json`. En móvil el usuario no puede acceder a esa ruta: está planificado compartirlo con NativeShare (`docs/PROFESSIONAL_REPORT.md` §4.1).
+- `ExportUserData()` → `Task<string>`: serializa todos los datos del usuario (perfil, registros, diario, partidas, cuestionarios, notificaciones) a `temporaryCachePath/lutra_datos.json` y devuelve la ruta; `SettingsController` la comparte con `FileSharer` (portabilidad, RGPD art. 20).
 
 ---
 
@@ -274,8 +274,11 @@ Delega en `ChartsController.OpenCharts()`.
 | Componente | Descripción |
 |---|---|
 | `BottomNavBar` | 5 tabs; botón central especial (abre panel Día/Momento en MainMenu, vuelve a MainMenu desde otros estados) |
-| `SafeAreaHandler` | Adapta `RectTransform` al safe area del dispositivo en cada frame |
+| `SafeAreaHandler` | Adapta el `RectTransform` asignado al safe area del dispositivo (al cambiar dimensiones). En `Main.unity` está en el padre común de todas las pantallas: las pantallas nuevas no lo llevan |
 | `ToastNotification` | Singleton; `ShowError(string)`, `ShowSuccess(string)` |
+| `UILineChart` | `MaskableGraphic` que dibuja su malla: serie principal (puntos con color propio, línea cortada en huecos > `maxGap`), serie secundaria y líneas guía. `SetData(points, range, colors, secondary, grid, maxGap)` |
+| `StatsBarRow` | Fila de barra horizontal (etiqueta, `Image` Filled, valor); `Setup(label, fraction, value, color)` |
+| `FileSharer` | `Share(paths, subject, text)`: menú nativo con NativeShare (`NATIVE_SHARE`); en el editor abre la carpeta |
 | `SupportDialog` | Singleton (GameObject siempre activo, hijo `_panel`); `ShowAlert()` (protocolo de apoyo) y `ShowResources()` (Ajustes, notificación de apoyo); botones 024 / 112 con `tel:` |
 | `ToggleColorChanger` | Cambia color de fondo de un Toggle según su estado |
 | `GreetingAnimator` | Fade in del texto de saludo sobre el color del label |

@@ -1,17 +1,13 @@
 using System;
 using System.Threading.Tasks;
 using UnityEngine;
-using Lutra.Core.Architecture;
-using Lutra.Core.Data.Models;
-using Lutra.Core.Data.Persistence;
 using Lutra.Core.Events;
-using Lutra.Core.Systems;
 using Lutra.UI.Components;
 
 namespace Lutra.Features.Charts
 {
     /// <summary>
-    /// Períodos de visualización disponibles en la sección de Informes.
+    /// Períodos de visualización de la pantalla de Estadísticas (rangos en ChartPeriodExtensions).
     /// </summary>
     public enum ChartPeriod
     {
@@ -21,22 +17,26 @@ namespace Lutra.Features.Charts
     }
 
     /// <summary>
-    /// Controlador de la sección de Informes.
-    /// Carga, calcula y sirve datos a ChartsView para los distintos períodos.
+    /// Controlador de la pantalla de Estadísticas. Pide el ReportData del período a
+    /// ReportDataLoader (las mismas cifras que el informe profesional) y lo pasa a ChartsView.
     /// </summary>
     public class ChartsController : MonoBehaviour
     {
+        /// <summary>Semanas que muestra el calendario en "Todo".</summary>
+        private const int AllTimeHeatmapWeeks = 12;
+
         [SerializeField] private ChartsView _view;
-
-        // ── Servicios ──────────────────────────────────────────────────
-
-        private DataRepository _dataRepository;
-        private StreakManager  _streakManager;
 
         // ── Estado ─────────────────────────────────────────────────────
 
         private ChartPeriod _currentPeriod = ChartPeriod.Week;
-        private ChartsData  _cachedData;
+        private int         _loadVersion;   // descarta resultados de cargas anteriores si se cambia de período rápido
+
+        /// <summary>Último período mostrado (lo usa la exportación como valor por defecto).</summary>
+        public ChartPeriod CurrentPeriod => _currentPeriod;
+
+        /// <summary>Se pide exportar el informe (lo atiende el panel de exportación, Fase 7).</summary>
+        public event Action OnExportRequested;
 
         // ── Unity lifecycle ────────────────────────────────────────────
 
@@ -48,49 +48,60 @@ namespace Lutra.Features.Charts
 
         private void OnEnable()
         {
-            _dataRepository = ServiceLocator.Get<DataRepository>();
-            _streakManager  = ServiceLocator.Get<StreakManager>();
-            _subscribeToView();
+            if (_view == null) return;
+            _view.OnPeriodChanged   += SetPeriod;
+            _view.OnExportRequested += _onExportRequested;
         }
 
         private void OnDisable()
         {
-            _unsubscribeFromView();
+            if (_view == null) return;
+            _view.OnPeriodChanged   -= SetPeriod;
+            _view.OnExportRequested -= _onExportRequested;
         }
 
         // ── API pública ────────────────────────────────────────────────
 
-        /// <summary>Abre los informes con el período actualmente seleccionado.</summary>
-        public async Task OpenCharts()
-        {
-            await LoadDataForPeriod(_currentPeriod);
-        }
+        /// <summary>Abre las estadísticas con el período actualmente seleccionado.</summary>
+        public Task OpenCharts() => LoadDataForPeriod(_currentPeriod);
 
-        /// <summary>
-        /// Carga y calcula datos para el período indicado, refresca la vista y
-        /// emite el evento de cambio de período.
-        /// </summary>
+        /// <summary>Cambia el período y recarga los datos.</summary>
+        public void SetPeriod(ChartPeriod period) => _ = LoadDataForPeriod(period);
+
+        /// <summary>Calcula el período indicado y refresca la vista.</summary>
         public async Task LoadDataForPeriod(ChartPeriod period)
         {
+            _currentPeriod = period;
+            int version = ++_loadVersion;
+
             try
             {
-                _currentPeriod = period;
+                DateTime now = DateTime.Now;
+                var (from, to) = period.GetRange(now);
+                var data = await ReportDataLoader.LoadAsync(from, to);
+                if (version != _loadVersion) return;
 
-                (DateTime from, DateTime to) = _getDateRange(period);
+                DateTime today = now.Date;
+                DateTime chartFrom, heatmapFrom;
+                if (period == ChartPeriod.AllTime)
+                {
+                    chartFrom   = data.From <= today ? data.From : today;
+                    heatmapFrom = ReportCalculator.WeekStart(today).AddDays(-7 * (AllTimeHeatmapWeeks - 1));
+                    if (heatmapFrom < chartFrom) heatmapFrom = chartFrom;
+                }
+                else if (period == ChartPeriod.Week)
+                {
+                    // Calendario: la semana natural (lunes-domingo) en una sola fila. El lunes siempre
+                    // cae dentro de los últimos 7 días, así que no hace falta cargar más datos
+                    chartFrom   = from.Date;
+                    heatmapFrom = ReportCalculator.WeekStart(today);
+                }
+                else
+                {
+                    chartFrom = heatmapFrom = from.Date;
+                }
 
-                // Registros del usuario (sin placeholders restaurados) y partidas del período
-                var records     = await _dataRepository.GetUserEmotionsForPeriod(from, to);
-                var allSessions = await _dataRepository.GetSessionsForPeriod(from, to);
-
-                // Calcular métricas
-                _cachedData = ChartsCalculator.Calculate(records, allSessions);
-
-                // Enriquecer con datos de racha
-                _cachedData.CurrentStreak = await _streakManager.GetCurrentStreak();
-                _cachedData.LongestStreak = await _streakManager.GetLongestStreak();
-
-                _view?.RefreshAll(_cachedData, period);
-
+                _view?.Render(data, period, chartFrom, heatmapFrom, today);
                 EventBus.EmitChartPeriodChanged(period);
             }
             catch (Exception ex)
@@ -100,80 +111,8 @@ namespace Lutra.Features.Charts
             }
         }
 
-        /// <summary>
-        /// Genera el informe semanal textual si es lunes y hay datos de la semana anterior.
-        /// Devuelve string vacío si no procede generarlo.
-        /// </summary>
-        public async Task<string> GenerateWeeklyReport()
-        {
-            try
-            {
-                // El informe se genera los lunes
-                if (DateTime.Now.DayOfWeek != DayOfWeek.Monday)
-                    return string.Empty;
+        // ── Handlers ───────────────────────────────────────────────────
 
-                var from = DateTime.Now.Date.AddDays(-7);
-                var to   = DateTime.Now.Date.AddDays(-1);
-                var records = await _dataRepository.GetUserEmotionsForPeriod(from, to);
-
-                if (records == null || records.Count == 0)
-                    return string.Empty;
-
-                var allSessions = await _dataRepository.GetSessionsForPeriod(from, to);
-
-                var weekData = ChartsCalculator.Calculate(records, allSessions);
-                weekData.CurrentStreak = await _streakManager.GetCurrentStreak();
-
-                string dominant  = weekData.MostFrequentEmotion.ToDisplayName();
-                string minigame  = weekData.MostBeneficialMinigame.ToDisplayName();
-                string streak    = ChartsCalculator.FormatStreak(weekData.CurrentStreak);
-
-                string report =
-                    $"Esta semana tu emoción dominante fue {dominant}. " +
-                    $"El minijuego más beneficioso fue {minigame}. " +
-                    $"Llevas {streak} de racha. ¡Sigue así!";
-
-                _view?.ShowWeeklyReport(report);
-                return report;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[ChartsController] GenerateWeeklyReport: {ex.Message}\n{ex.StackTrace}");
-                ToastNotification.ShowError("Algo fue mal, inténtalo de nuevo");
-                return string.Empty;
-            }
-        }
-
-        /// <summary>Cambia el período y recarga los datos.</summary>
-        public void SetPeriod(ChartPeriod period)
-        {
-            _ = LoadDataForPeriod(period);
-        }
-
-        // ── Métodos privados ───────────────────────────────────────────
-
-        private (DateTime from, DateTime to) _getDateRange(ChartPeriod period)
-        {
-            var now = DateTime.Now;
-            return period switch
-            {
-                ChartPeriod.Week    => (now.Date.AddDays(-6), now),
-                ChartPeriod.Month   => (new DateTime(now.Year, now.Month, 1), now),
-                ChartPeriod.AllTime => (DateTime.MinValue, now),
-                _                   => (now.Date.AddDays(-6), now)
-            };
-        }
-
-        private void _subscribeToView()
-        {
-            if (_view == null) return;
-            _view.OnPeriodChanged += SetPeriod;
-        }
-
-        private void _unsubscribeFromView()
-        {
-            if (_view == null) return;
-            _view.OnPeriodChanged -= SetPeriod;
-        }
+        private void _onExportRequested() => OnExportRequested?.Invoke();
     }
 }

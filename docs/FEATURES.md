@@ -184,35 +184,37 @@ Pantalla post-minijuego; `AppState.MinigameActive`.
 
 ## Features/Charts
 
-### ChartsScreen / Controller / View
-`AppState.Charts`. `ChartsScreen` delega en `ChartsController.OpenCharts()`.
+Pantalla de Estadísticas (`AppState.Charts`) y exportación del informe profesional. Especificación en `docs/PROFESSIONAL_REPORT.md` §2 y §4; métricas en `docs/METRICS.md`.
 
-### ChartsData
-DTO con todos los datos calculados para la vista.
+### ChartsScreen / ChartsController / ChartsView
+- `ChartsScreen.OnScreenFocused` → `ChartsController.OpenCharts()`.
+- `ChartsController.LoadDataForPeriod(period)`: rango con `ChartPeriod.GetRange` → `ReportDataLoader.LoadAsync` → `ChartsView.Render(data, period, chartFrom, heatmapFrom, today)`. Descarta resultados de cargas anteriores si se cambia de periodo rápido. En "Semana", el calendario muestra la semana natural en curso (una fila; el lunes siempre cae dentro de los últimos 7 días). En "Todo", el gráfico abarca todo el historial y el calendario las últimas 12 semanas (tope fijo). Expone `CurrentPeriod` y el evento `OnExportRequested`.
+- `ChartsView`: bloques periodo · resumen (carita + tendencia) · gráfico de ánimo (`UILineChart`: puntos del color de la emoción, media de 7 días; ambas líneas se cortan en los huecos: la diaria a partir de 2 días, la media a partir de `ReportCalculator.MovingAverageWindowDays`) · calendario (celdas alineadas lunes-domingo, color de la emoción del día, última fila completada con celdas invisibles, celdas reducidas con más de `_heatmapCompactAfterWeeks` filas, también la fila de letras `_heatmapWeekdays`; celdas con `HeatmapCell`: marca X en los días sin registro) · leyenda (`_legendContainers` + `_legendItemPrefab` con `HeatmapCell`: 8 emociones en orden de valencia + "Sin registro", se pinta una vez) · emociones (`StatsBarRow`) · estabilidad (oculta sin 14 pares) · qué influye en ti · qué te ayuda + respiración · WHO-5 (`UILineChart`) · hábitos · botón exportar. Todos los campos son opcionales.
+
+### ChartPeriod / ChartPeriodExtensions
+`Week` = últimos 7 días, `Month` = últimos 30 días (ventanas móviles: el periodo anterior tiene la misma duración), `AllTime` = desde el alta. `GetRange(now)`, `CurrentText()`, `PreviousText()`.
+
+### StatsTextBuilder
+Clase pura (con tests): frases en lenguaje sencillo y positivo a partir de `ReportData` (resumen, tendencia, estabilidad, motivos, qué te ayuda, respiración, WHO-5, constancia, diario) y los textos de "faltan datos". Sin términos técnicos ni etiquetas clínicas.
 
 ### ChartsCalculator
-Clase estática pura.
-- `Calculate(records, sessions)` → `ChartsData`
-- `FormatStreak(int days)` → `"1 día"` / `"X días"`
-- `FormatDuration(int seconds)` → `"Xs"` / `"Xm Ys"` / `"Xh Ym"`
-
-### ChartPeriod
-Enum `Week`, `Month`, `AllTime`; definido en `ChartsController.cs`.
+Solo formato compartido: `FormatStreak(int days)` → "1 día" / "X días"; `FormatDuration(int seconds)` → "Xs" / "Xm Ys" / "Xh Ym".
 
 ### Report (`Features/Charts/Report/`)
-Motor de métricas del seguimiento (`docs/METRICS.md` §4). Lo usarán la nueva pantalla de Estadísticas (Fase 6) y el informe (Fase 7).
-- `ReportInput` → `ReportCalculator.Calculate` (clase pura, con tests) → `ReportData` (ánimo, dinámica, perfil emocional, motivos, patrones, minijuegos, diario, WHO-5, adherencia, activaciones de apoyo).
-- `ReportDataLoader.LoadAsync(from, to)`: reúne los datos de `DataRepository`, el periodo anterior, las rachas y el diccionario, y calcula.
+Motor de métricas (`docs/METRICS.md` §4).
+- `ReportInput` → `ReportCalculator.Calculate` (clase pura, con tests) → `ReportData`.
+- `ReportDataLoader.BuildInputAsync(from, to)` reúne los datos de `DataRepository`, el periodo anterior, las rachas y el diccionario; `LoadAsync` además calcula.
 - `DiaryLexicon` + `DiaryLanguageAnalyzer`: análisis del lenguaje del diario con `Assets/Resources/DiaryLexicon_es.txt`.
 
-### WeeklySummaryBuilder
-Clase pura: texto del resumen semanal del centro de notificaciones (`docs/NOTIFICATION_CENTER.md` §9). `GetPreviousWeekMonday(today)`, `BuildBody(monday, week, previousWeek, sessions)` → null si hay menos de 3 check-ins de Día.
+### Export (`Features/Charts/Export/`)
+- `PdfDocumentWriter`: PDF 1.4 propio (Helvetica / Helvetica-Bold WinAnsi, texto, líneas, rectángulos, polilíneas, medida de texto con las métricas de Helvetica). Los símbolos que no existen en WinAnsi se sustituyen (≤ → "<=", ≥ → ">=", ≈ → "~", − → "-").
+- `ReportPdfBuilder.Build(input, data, options)`: las secciones del informe (§4.3), con tablas, gráficos, avisos de atención, notas opcionales, anexos y pie "Página N de M".
+- `ReportCsvBuilder.Build(input, data, includeNotes, appVersion)`: CSV + `LEEME.txt` (§4.4).
+- `ReportExporter.ExportAsync(period, includeNotes, includeCsv)`: genera PDF y ZIP (UTF-8 con BOM) en `temporaryCachePath/LutraExport` (borra la exportación anterior). `ExportPeriod`: 7 días, 30 días, 3 meses, todo.
+- `ExportPanelView` + `ReportExportController`: panel con periodo, "Incluir notas y diario" (desmarcado) e "Incluir datos en bruto (CSV)" (marcado); genera y abre el menú de compartir (`FileSharer`). El periodo por defecto sigue al de la pantalla.
 
-### Estado actual y rediseño planificado
-Lo que muestra ahora `ChartsView`: puntos de la emoción diaria (eje Y = índice del enum), mapa de calor del mes actual (no sigue el periodo), racha actual/máxima, total de check-ins, emoción más frecuente y minijuego más beneficioso (con `.ToString()`, en inglés) y duración media de sesión.
-Limitaciones conocidas: incluye placeholders restaurados, el impacto de minijuegos es la resta de índices `EmotionAfter − EmotionBefore` (≈ 0 cuando el usuario no elige emoción) y `GenerateWeeklyReport()` no se llama desde ningún sitio.
-Ya corregido (Fase 1): usa `GetUserEmotionsForPeriod` (sin placeholders) y `GetSessionsForPeriod`, y los nombres se muestran en español (`ToDisplayName()`).
-Rediseño completo, métricas nuevas y exportación del informe: `docs/PROFESSIONAL_REPORT.md` y `docs/METRICS.md`; tareas en `docs/ROADMAP.md`.
+### WeeklySummaryBuilder
+Clase pura: texto del resumen semanal del centro de notificaciones (`docs/NOTIFICATION_CENTER.md` §9).
 
 ---
 
@@ -270,6 +272,7 @@ Consentimiento de datos de salud (`AppState.Consent`). Especificación en `docs/
 ## Features/Settings
 
 `SettingsController`, `SettingsView`, `SettingsScreen` — `AppState.Settings`.
+- Exportar datos: `SettingsManager.ExportUserData()` genera `lutra_datos.json` con todos los datos (perfil, registros, diario, partidas, cuestionarios, notificaciones) y se comparte con `FileSharer`.
 - Ayuda y privacidad: `_helpResourcesButton` → `SupportDialog.ShowResources()`; `_diaryAnalysisToggle` → `ConsentGate.SetDiaryAnalysis` (se carga del perfil en `OpenSettings`).
 
 ---

@@ -68,8 +68,10 @@ namespace Lutra.Features.Charts
 
     public class DailyMood
     {
-        public DateTime Date;
-        public int      Mood;
+        public DateTime    Date;
+        public int         Mood;
+        /// <summary>Emoción del check-in de Día (para colorear el calendario).</summary>
+        public EmotionType Emotion;
         /// <summary>Media de los días con registro dentro de los 7 últimos (incluido este).</summary>
         public float    MovingAverage7;
     }

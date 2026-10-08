@@ -22,6 +22,8 @@ namespace Lutra.Features.Charts
         public const int MinDaysForMean            = 3;
         public const int MinDaysForTrend           = 7;
         public const int MinDaysForStdDev          = 7;
+        /// <summary>Días de la media móvil del ánimo (MovingAverage7). Los gráficos no la unen a través de huecos mayores.</summary>
+        public const int MovingAverageWindowDays   = 7;
         public const int MinPairsForDynamics       = 14;
         public const int MinIntradayPairs          = 5;
         public const int MinRecordsForValence      = 5;
@@ -59,7 +61,7 @@ namespace Lutra.Features.Charts
             var previousDaily = DailySeries(previous);
 
             _range(input, user, daily, data);
-            _mood(data.Mood, daily, previousDaily, user);
+            _mood(data.Mood, daily, previousDaily, user, DailyEmotions(user));
             _dynamics(data.Dynamics, daily, previousDaily);
             _emotions(data.Emotions, user);
             data.Motives = _motives(user);
@@ -89,6 +91,13 @@ namespace Lutra.Features.Charts
                 series[group.Key] = group.OrderByDescending(r => r.Timestamp).First().MoodLevel;
             return series;
         }
+
+        /// <summary>Emoción del check-in de Día de cada día (el más reciente si hubiera varios).</summary>
+        public static Dictionary<DateTime, EmotionType> DailyEmotions(IEnumerable<EmotionRecord> records)
+            => records
+                .Where(r => r.IsMorningCheck && r.Source == RecordSource.User && r.MoodLevel > 0)
+                .GroupBy(r => r.Timestamp.Date)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.Timestamp).First().EmotionType);
 
         /// <summary>Pares (ayer, hoy) de días consecutivos de la serie: los huecos no se comparan (Jahng et al., 2008).</summary>
         public static List<(int previous, int current)> ConsecutivePairs(SortedDictionary<DateTime, int> daily)
@@ -178,15 +187,22 @@ namespace Lutra.Features.Charts
         // ── §4.1 Estado de ánimo ───────────────────────────────────────
 
         private static void _mood(MoodSummary mood, SortedDictionary<DateTime, int> daily,
-                                  SortedDictionary<DateTime, int> previousDaily, List<EmotionRecord> user)
+                                  SortedDictionary<DateTime, int> previousDaily, List<EmotionRecord> user,
+                                  Dictionary<DateTime, EmotionType> dailyEmotions)
         {
             var values = daily.Values.ToList();
             mood.N = values.Count;
 
             foreach (var day in daily)
             {
-                var window = daily.Where(d => d.Key > day.Key.AddDays(-7) && d.Key <= day.Key).Select(d => d.Value);
-                mood.Daily.Add(new DailyMood { Date = day.Key, Mood = day.Value, MovingAverage7 = (float)window.Average() });
+                var window = daily.Where(d => d.Key > day.Key.AddDays(-MovingAverageWindowDays) && d.Key <= day.Key).Select(d => d.Value);
+                mood.Daily.Add(new DailyMood
+                {
+                    Date           = day.Key,
+                    Mood           = day.Value,
+                    Emotion        = dailyEmotions[day.Key],
+                    MovingAverage7 = (float)window.Average()
+                });
             }
 
             if (mood.N >= MinDaysForMean)

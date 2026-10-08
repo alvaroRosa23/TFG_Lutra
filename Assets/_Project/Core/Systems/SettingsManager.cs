@@ -85,31 +85,31 @@ namespace Lutra.Core.Systems
         }
 
         /// <summary>
-        /// Serializa todos los datos del usuario a JSON y los guarda en
-        /// Application.persistentDataPath/owlet_export.json.
+        /// Serializa todos los datos del usuario a JSON (derecho de portabilidad, RGPD art. 20) en
+        /// temporaryCachePath/lutra_datos.json y devuelve la ruta para compartirla.
         /// </summary>
-        public async Task ExportUserData()
+        public async Task<string> ExportUserData()
         {
             try
             {
-                var records = await Repository.GetEmotionsForPeriod(DateTime.MinValue, DateTime.MaxValue);
-                var entries = await Repository.GetAllDiaryEntries();
-                var profile = await Repository.GetUserProfile();
-
                 var exportPayload = new
                 {
-                    ExportDate    = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    UserProfile   = profile,
-                    EmotionRecords = records,
-                    DiaryEntries  = entries
+                    ExportDate       = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    UserProfile      = await Repository.GetUserProfile(),
+                    EmotionRecords   = await Repository.GetEmotionsForPeriod(DateTime.MinValue, DateTime.MaxValue),
+                    DiaryEntries     = await Repository.GetAllDiaryEntries(),
+                    MinigameSessions = await Repository.GetAllMinigameSessions(),
+                    ScaleResponses   = await Repository.GetAllScaleResponses(),
+                    Notifications    = await Repository.GetAllNotifications()
                 };
 
                 string json = JsonConvert.SerializeObject(exportPayload, Formatting.Indented);
-                string path = Path.Combine(Application.persistentDataPath, "lutra_export.json");
+                string path = Path.Combine(Application.temporaryCachePath, "lutra_datos.json");
 
                 await File.WriteAllTextAsync(path, json);
 
                 Debug.Log($"[SettingsManager] Datos exportados en: {path}");
+                return path;
             }
             catch (Exception ex)
             {

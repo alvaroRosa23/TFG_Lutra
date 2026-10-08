@@ -7,6 +7,16 @@ Marca cada tarea al terminarla y actualiza el doc de referencia correspondiente 
 
 ---
 
+## ⭐ PRIORIDAD — Mejoras del gráfico "Tu ánimo" (acordado 2026-10-08)
+
+Empezar por aquí en la próxima sesión. Contexto: al revisar el gráfico montado, sin ejes no se entiende qué es arriba/abajo ni qué día es cada punto, hay colores de emoción casi iguales y la tendencia es lo que menos se ve.
+
+- [ ] **Eje Y con caritas** (solo Unity): columna a la izquierda de `MoodChart` con las 5 caritas (arriba = muy bien). `VerticalLayoutGroup` con padding arriba/abajo = `_padding` del `UILineChart`, 5 hijos con *Flexible Height* 1 y la carita centrada: el rango Y es 0,5–5,5, así que cada nivel ocupa una franja igual y quedan alineadas con las líneas guía. Gráfico y columna dentro de una fila con `HorizontalLayoutGroup`.
+- [ ] **Eje X con fechas** (código): dos textos bajo el gráfico que `ChartsView` rellena según el periodo — inicio del eje (p. ej. "9 sep") a la izquierda y "Hoy" a la derecha. Nuevos campos opcionales en `ChartsView`; formato de fecha en `StatsTextBuilder`.
+- [ ] **Colores de las líneas** (Inspector de `MoodChart`): línea diaria gris claro `#BDBDBD` grosor 2; media de 7 días gris oscuro `#555555` (o acento no azul) grosor 4. La línea azul actual se confunde con los puntos de Tristeza y la tendencia, que es lo importante, es la menos visible.
+- [ ] **Paleta de emociones**: Agobio ≈ Energía (rosa/salmón) y Ansiedad ≈ Nostalgia (morados) no se distinguen. Proponer 8 colores distinguibles (también con daltonismo) manteniendo el estilo. **Decisión del autor**: `EmotionTheme.primaryColor` también lo usa `ThemeManager` para teñir la app.
+- [ ] **Sin X en el gráfico** (decidido): un día sin registro no tiene valor de ánimo; la línea ya se corta en los huecos. Texto explicativo bajo el gráfico: "…Los huecos son días sin registro." Quitar la entrada "Sin registro" de la leyenda del gráfico (dejarla en la del calendario) → requiere que la leyenda permita omitirla por contenedor (código).
+
 ## Fase 1 · Datos y captura
 
 - [x] `DataRepository.GetUserEmotionsForPeriod(from, to)`: solo `Source == RecordSource.User` (para estadísticas e informe)
@@ -69,20 +79,23 @@ Marca cada tarea al terminarla y actualiza el doc de referencia correspondiente 
 - [x] `DataRepository`: `GetDiaryEntriesForPeriod`, `GetLastNotificationOfType`, `GetNotificationsOfTypeForPeriod`
 - [x] Tests: `ReportCalculatorTests`, `DiaryLanguageTests`, `ModelHelpersTests` (72 tests en total, todos pasan)
 
-## Fase 6 · Pantalla de Estadísticas
+## Fase 6 · Pantalla de Estadísticas (código hecho)
 
-- [ ] Nuevo `ChartsView` según `PROFESSIONAL_REPORT.md` §2.2 (gráfico de ánimo, calendario por periodo, emociones, estabilidad, motivos, minijuegos, WHO-5, hábitos)
-- [ ] Estados vacíos con "registra X días más"
-- [ ] Sustituir `GenerateWeeklyReport` por el resumen semanal del centro de notificaciones (`NOTIFICATION_CENTER.md` §9)
+- [x] `ChartsView` nuevo según `PROFESSIONAL_REPORT.md` §2.2 (resumen, gráfico de ánimo, calendario por periodo, emociones, estabilidad, motivos, minijuegos y respiración, WHO-5, hábitos, botón exportar)
+- [x] `ChartsController` con `ReportDataLoader`; periodos `ChartPeriodExtensions` (Mes = últimos 30 días)
+- [x] `StatsTextBuilder` (frases y estados vacíos, con tests)
+- [x] Componentes `UILineChart` y `StatsBarRow`
+- [x] Eliminados `ChartsData`, `ChartsCalculator.Calculate` y `GenerateWeeklyReport` (sustituido por el resumen semanal)
 
-## Fase 7 · Exportación
+## Fase 7 · Exportación (código hecho)
 
-- [ ] Importar NativeShare (licencia MIT)
-- [ ] `PdfDocumentWriter` (PDF 1.4, Helvetica WinAnsi, texto, líneas, rectángulos, polilíneas)
-- [ ] `ReportPdfBuilder` (estructura de `PROFESSIONAL_REPORT.md` §4.3)
-- [ ] `ReportCsvBuilder` + ZIP + `LEEME.txt` (§4.4)
-- [ ] Panel de exportación en Estadísticas (periodo, incluir notas y diario, incluir CSV)
-- [ ] Exportación JSON de Ajustes compartible con NativeShare
+- [x] NativeShare añadido a `Packages/manifest.json` (git) y a `LutraCore.asmdef` (`NATIVE_SHARE` con *version define*)
+- [x] `PdfDocumentWriter` y `ReportPdfBuilder` (estructura §4.3; revisado visualmente con un informe de ejemplo)
+- [x] `ReportCsvBuilder` + ZIP + `LEEME.txt` (§4.4)
+- [x] `ReportExporter`, `FileSharer`, `ExportPanelView` + `ReportExportController`
+- [x] Exportación JSON de Ajustes con todos los datos y compartible
+- [x] Tests (`ReportExportTests`, `StatsTextBuilderTests`): 88 tests en total, todos pasan
+- [ ] Rango de fechas personalizado en la exportación (fuera por ahora)
 
 ## Pasos en Unity y consola (manuales)
 
@@ -90,14 +103,14 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 
 ### Fase 1
 
-- [ ] **`PostMinigameScreen`**: crear una fila de 5 caritas (muy mal → muy bien) y asignar en el Inspector `_moodButtons` (los 5 `Button`, en ese orden), `_moodButtonImages` (sus `Image`), `_moodSelectedColor` y `_moodNormalColor`. Los botones de emoción se quedan como están.
+- [x] **`PostMinigameScreen`**: crear una fila de 5 caritas (muy mal → muy bien) y asignar en el Inspector `_moodButtons` (los 5 `Button`, en ese orden), `_moodButtonImages` (sus `Image`), `_moodSelectedColor` y `_moodNormalColor`. Los botones de emoción se quedan como están.
 
 ### Fase 2 — centro de notificaciones
 
-- [ ] **Prefab `NotificationCardPrefab`**: raíz con `NotificationCard` (+ `LayoutElement`), hijos `Image` (icono), 3 `TextMeshProUGUI` (título, cuerpo, hora) y un punto de "no leída" (`GameObject`). Asignar `_icon`, `_titleLabel`, `_bodyLabel`, `_timeLabel`, `_unreadDot`. Sin botón de acción.
-- [ ] **Prefab `PinnedNotificationCardPrefab`**: igual pero destacado (color de acento) y con un `Button` "Hacer ahora" → `_actionButton` y su texto → `_actionLabel`. Puede dejar `_unreadDot` vacío.
-- [ ] **Prefab `NotificationGroupHeaderPrefab`**: un `TextMeshProUGUI` ("Hoy", "Ayer"…).
-- [ ] **Pantalla `NotificationsScreen`** en `Main.unity`, hermana de las demás pantallas:
+- [x] **Prefab `NotificationCardPrefab`**: raíz con `NotificationCard` (+ `LayoutElement`), hijos `Image` (icono), 3 `TextMeshProUGUI` (título, cuerpo, hora) y un punto de "no leída" (`GameObject`). Asignar `_icon`, `_titleLabel`, `_bodyLabel`, `_timeLabel`, `_unreadDot`. Sin botón de acción.
+- [x] **Prefab `PinnedNotificationCardPrefab`**: igual pero destacado (color de acento) y con un `Button` "Hacer ahora" → `_actionButton` y su texto → `_actionLabel`. Puede dejar `_unreadDot` vacío.
+- [x] **Prefab `NotificationGroupHeaderPrefab`**: un `TextMeshProUGUI` ("Hoy", "Ayer"…).
+- [x] **Pantalla `NotificationsScreen`** en `Main.unity`, hermana de las demás pantallas:
   - Raíz: `CanvasGroup` + `NotificationsScreen` (asignar `_controller`) + `NotificationsController` (asignar `_view`) + `NotificationsView`.
   - Cabecera con título "Notificaciones" y botón atrás → `_backButton`.
   - `ScrollView` vertical cuyo `Content` tenga `VerticalLayoutGroup` + `ContentSizeFitter`. Dentro:
@@ -106,17 +119,17 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
     - Botón "Cargar más" → `_loadMoreButton` (puede ir dentro de `_listContainer` o justo debajo).
   - Estado vacío ("Aquí verás tus recompensas y avisos") → `_emptyState`.
   - Prefabs → `_pinnedCardPrefab`, `_cardPrefab`, `_groupHeaderPrefab`. Iconos opcionales en la sección "Iconos".
-  - Añadir `SafeAreaHandler` como en el resto de pantallas.
-- [ ] **`ScreenManager`**: añadir `NotificationsScreen` al array `_screens`.
-- [ ] **`MainMenuScreen`**: botón de notificaciones junto al de Ajustes → `_notificationsButton`; hijo con círculo "!" → `_notificationsBadge` (empieza desactivado).
-- [ ] **No hace falta** añadir `NotificationCenter` a la escena: lo crea `GameManager`.
-- [ ] **Firebase (consola)**: reglas de Firestore que permitan al propio usuario leer y escribir `users/{uid}/notifications` (y, para la Fase 3, `users/{uid}/scaleResponses`). Si las reglas ya usan un comodín para las subcolecciones del usuario, no hay que tocar nada.
-- [ ] **Tests**: Window > General > Test Runner → EditMode → Run All (ensamblado `Lutra.Tests.EditMode`).
+  - Sin `SafeAreaHandler`: el área segura la aplica el padre común de todas las pantallas.
+- [x] **`ScreenManager`**: añadir `NotificationsScreen` al array `_screens`.
+- [x] **`MainMenuScreen`**: botón de notificaciones junto al de Ajustes → `_notificationsButton`; hijo con círculo "!" → `_notificationsBadge` (empieza desactivado).
+- [x] **No hace falta** añadir `NotificationCenter` a la escena: lo crea `GameManager`.
+- [x] **Firebase (consola)**: reglas de Firestore que permitan al propio usuario leer y escribir `users/{uid}/notifications` (y, para la Fase 3, `users/{uid}/scaleResponses`). Si las reglas ya usan un comodín para las subcolecciones del usuario, no hay que tocar nada.
+- [x] **Tests**: Window > General > Test Runner → EditMode → Run All (ensamblado `Lutra.Tests.EditMode`).
 
 ### Fase 3 — WHO-5
 
-- [ ] **Pantalla `Who5Screen`** en `Main.unity`, hermana de las demás:
-  - Raíz: `CanvasGroup` + `Who5Screen` (asignar `_controller`) + `Who5Controller` (asignar `_view`) + `Who5View` + `SafeAreaHandler`.
+- [x] **Pantalla `Who5Screen`** en `Main.unity`, hermana de las demás:
+  - Raíz: `CanvasGroup` + `Who5Screen` (asignar `_controller`) + `Who5Controller` (asignar `_view`) + `Who5View`.
   - Cabecera con botón cerrar (X) → `_closeButton`.
   - **Panel de introducción** → `_introPanel`: texto → `_introLabel`, botón "Empezar" → `_startButton`.
   - **Panel de pregunta** → `_questionPanel`:
@@ -125,30 +138,62 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
     - **6 botones** de opción en vertical, en este orden: Todo el tiempo, La mayor parte del tiempo, Más de la mitad del tiempo, Menos de la mitad del tiempo, De vez en cuando, Nunca → `_optionButtons`; sus textos → `_optionLabels` (el código los rellena). Colores `_optionSelectedColor` / `_optionNormalColor`.
     - Botón "Anterior" → `_previousButton`; botón "Siguiente/Enviar" → `_nextButton` y su texto → `_nextButtonLabel`.
   - **Panel de agradecimiento** → `_thanksPanel`: textos → `_scoreLabel`, `_coinsLabel`, `_nextDateLabel`; botón "Listo" → `_doneButton`.
-- [ ] **`ScreenManager`**: añadir `Who5Screen` al array `_screens`.
-- [ ] **Firebase (consola)**: permitir `users/{uid}/scaleResponses` (ver el paso de la Fase 2).
-- [ ] **Probar**: con un usuario nuevo debe aparecer la notificación anclada al entrar al menú principal; responder, comprobar que desaparece, que se suman 20 monedas y que llega la notificación de recompensa.
+- [x] **`ScreenManager`**: añadir `Who5Screen` al array `_screens`.
+- [x] **Firebase (consola)**: permitir `users/{uid}/scaleResponses` (ver el paso de la Fase 2).
+- [x] **Probar**: con un usuario nuevo debe aparecer la notificación anclada al entrar al menú principal; responder, comprobar que desaparece, que se suman 20 monedas y que llega la notificación de recompensa.
 
 ### Fase 4 — consentimiento y apoyo
 
-- [ ] **Pantalla `ConsentScreen`** en `Main.unity`, hermana de las demás:
-  - Raíz: `CanvasGroup` + `ConsentScreen` (asignar `_controller`) + `ConsentController` (asignar `_view`) + `ConsentView` + `SafeAreaHandler`.
+- [x] **Pantalla `ConsentScreen`** en `Main.unity`, hermana de las demás:
+  - Raíz: `CanvasGroup` + `ConsentScreen` (asignar `_controller`) + `ConsentController` (asignar `_view`) + `ConsentView`.
   - Título → `_titleLabel`; `ScrollView` con el texto largo → `_bodyLabel` (TextMeshPro con *Rich Text* activado: usa `<b>`).
   - Casilla obligatoria (`Toggle` + texto) → `_requiredToggle`, `_requiredLabel`; casilla del diario → `_diaryAnalysisToggle`, `_diaryAnalysisLabel`. Los textos los pone el código.
   - Botones "Aceptar y continuar" → `_continueButton` y "No acepto" → `_declineButton`.
-- [ ] **`ScreenManager`**: añadir `ConsentScreen` al array `_screens`.
-- [ ] **`SupportDialog`**: GameObject **siempre activo** en el canvas principal, por encima de las pantallas (como `ToastNotification`), con el componente `SupportDialog`. Hijo `_panel` (empieza desactivado) con fondo que bloquee la pantalla, título → `_titleLabel`, mensaje → `_messageLabel`, botones "Llamar al 024" → `_call024Button`, "Emergencias 112" → `_call112Button` y cerrar → `_closeButton` con su texto → `_closeLabel`.
-- [ ] **Ajustes (`SettingsView`)**: botón "Recursos de ayuda" → `_helpResourcesButton`; `Toggle` "Análisis de escritura para el informe" → `_diaryAnalysisToggle`.
-- [ ] **Tarjeta de notificación**: para que las de apoyo muestren "Ver recursos", el prefab normal (`NotificationCardPrefab`) necesita también un botón → `_actionButton` y `_actionLabel` (se oculta solo en las demás).
-- [ ] **Probar**: usuario existente → al entrar debe salir el consentimiento una vez; "No acepto" → vuelve al login. Tres check-ins de Día seguidos con ánimo 1–2 → aparece el diálogo de apoyo y la notificación.
+- [x] **`ScreenManager`**: añadir `ConsentScreen` al array `_screens`.
+- [x] **`SupportDialog`**: GameObject **siempre activo** en el canvas principal, por encima de las pantallas (como `ToastNotification`), con el componente `SupportDialog`. Hijo `_panel` (empieza desactivado) con fondo que bloquee la pantalla, título → `_titleLabel`, mensaje → `_messageLabel`, botones "Llamar al 024" → `_call024Button`, "Emergencias 112" → `_call112Button` y cerrar → `_closeButton` con su texto → `_closeLabel`.
+- [x] **Ajustes (`SettingsView`)**: botón "Recursos de ayuda" → `_helpResourcesButton`; `Toggle` "Análisis de escritura para el informe" → `_diaryAnalysisToggle`.
+- [x] **Tarjeta de notificación**: para que las de apoyo muestren "Ver recursos", el prefab normal (`NotificationCardPrefab`) necesita también un botón → `_actionButton` y `_actionLabel` (se oculta solo en las demás).
+- [x] **Probar**: usuario existente → al entrar debe salir el consentimiento una vez; "No acepto" → vuelve al login. Tres check-ins de Día seguidos con ánimo 1–2 → aparece el diálogo de apoyo y la notificación.
 
 ### Fase 5 — cálculo
 
 - Nada que montar. Comprobar que `Assets/Resources/DiaryLexicon_es.txt` se importa como `TextAsset` y ejecutar los tests (Test Runner → EditMode).
 
-### Fases siguientes
+### Fase 6 — pantalla de Estadísticas
 
-- [ ] Nueva pantalla de Estadísticas y panel de exportación (se detallarán al terminar su código)
+`ChartsView` ha cambiado entera: las referencias antiguas del Inspector se pierden y hay que montar la pantalla de nuevo.
+
+- [x] **Prefabs:**
+  - `EmotionBarRowPrefab`: `StatsBarRow` con texto de la emoción → `_label`, `Image` de barra (*Image Type* = Filled, *Fill Method* = Horizontal, con un sprite blanco) → `_fill`, texto del número → `_valueLabel`. Con `LayoutElement` (alto fijo).
+  - `StatsTextRowPrefab`: un `TextMeshProUGUI` con *word wrapping* y `LayoutElement` (o `ContentSizeFitter` vertical), para motivos y minijuegos.
+  - `HeatmapCellPrefab`: `Image` + `HeatmapCell` (`_background` = la propia Image, `_noRecordMark` = hijo con una X, desactivado).
+  - `LegendItemPrefab`: `HorizontalLayoutGroup` + `HeatmapCell` (muestra de color con su X como `_background`/`_noRecordMark`, texto → `_label`).
+- [x] **`ChartsScreen`** (`ScrollView` vertical con `VerticalLayoutGroup` + `ContentSizeFitter` en `Content`). En `ChartsView` asignar:
+  - Periodo: `_weekButton`, `_monthButton`, `_allTimeButton`.
+  - Resumen: `_summaryLabel`, `_summaryFace` (`Image`) + `_moodFaceSprites` (las 5 caritas del check-in, de muy mal a muy bien) y, opcionales, `_trendUpIcon`, `_trendFlatIcon`, `_trendDownIcon`.
+  - Gráfico: un GameObject de UI con el componente **`UILineChart`** (desactivar *Raycast Target*; alto ~250) → `_moodChart`; texto de vacío → `_moodChartEmptyLabel`.
+  - Calendario: contenedor con `GridLayoutGroup` (*Constraint* = Fixed Column Count = 7) → `_heatmapContainer`; `_heatmapCellPrefab`.
+  - Emociones: `_emotionsSummaryLabel`, contenedor vertical → `_emotionBarsContainer`, `_emotionBarPrefab`.
+  - Estabilidad: raíz del bloque → `_stabilitySection`, texto → `_stabilityLabel`.
+  - Qué influye en ti: contenedor vertical → `_motivesContainer`, `_motivesEmptyLabel`.
+  - Qué te ayuda: contenedor vertical → `_helpContainer`, `_helpEmptyLabel`, `_breathingLabel`.
+  - `_textRowPrefab` = `StatsTextRowPrefab`.
+  - Bienestar: otro **`UILineChart`** → `_who5Chart`, `_who5Label`.
+  - Hábitos: `_streakCurrentLabel`, `_streakMaxLabel`, `_adherenceLabel`, `_diaryLabel`.
+  - Botón "Exportar informe para mi profesional" → `_exportButton`.
+  - `_emotionThemes`: los 8 `EmotionTheme`.
+- [x] `ChartsScreen` → `_chartsController`; `ChartsController` → `_view`.
+
+### Fase 7 — exportación
+
+- [ ] **Package Manager:** al abrir Unity se descargará NativeShare desde GitHub (`com.yasirkula.nativeshare`). **Hace falta Git instalado y en el PATH.** Si falla: *Window → Package Manager → + → Add package from git URL* → `https://github.com/yasirkula/UnityNativeShare.git`.
+- [ ] **Panel de exportación** dentro de `ChartsScreen` (por encima del resto):
+  - GameObject con `ExportPanelView` (siempre activo) y un hijo `_panel` (fondo que bloquee la pantalla, empieza desactivado).
+  - 4 botones de periodo → `_last7Button` ("7 días"), `_last30Button` ("30 días"), `_last90Button` ("3 meses"), `_allTimeButton` ("Todo").
+  - `Toggle` "Incluir mis notas y mi diario" → `_includeNotesToggle`; `Toggle` "Incluir datos en bruto (CSV)" → `_includeCsvToggle`.
+  - Botones "Generar y compartir" → `_generateButton`, "Cancelar" → `_cancelButton`; texto de estado → `_statusLabel`.
+- [ ] **`ReportExportController`** en `ChartsScreen` (o en el panel): asignar `_charts` (el `ChartsController`) y `_view` (el `ExportPanelView`).
+- [ ] **Probar en el editor:** Estadísticas → Exportar → Generar: se abre la carpeta con `Lutra_Informe_fecha.pdf` y `Lutra_Datos_fecha.zip`. En el móvil se abre el menú de compartir.
 
 ---
 
@@ -179,6 +224,13 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 | 2026-10-06 | El consentimiento se pide **tras crear el perfil y antes del primer check-in** (no antes del onboarding) | Nombre y fecha de nacimiento no son datos de salud; los registros emocionales empiezan en el check-in. Así el consentimiento se guarda en el perfil y se sincroniza |
 | 2026-10-06 | "No acepto" cierra la sesión | Sin consentimiento no se pueden tratar datos de bienestar |
 | 2026-10-06 | El recuento de palabras del diario se calcula siempre; solo los porcentajes de lenguaje dependen del interruptor | El número de palabras no analiza el contenido; los porcentajes sí |
+| 2026-10-06 | Estadísticas: "Mes" = últimos 30 días (ventana móvil) en vez del mes natural | El periodo anterior tiene la misma duración y la comparación es justa; a principios de mes hay datos |
+| 2026-10-06 | Los archivos exportados se borran al iniciar la siguiente exportación | El menú de compartir del sistema puede seguir leyéndolos después de volver a la app |
+| 2026-10-06 | Sin rango de fechas personalizado en la exportación (7 días, 30 días, 3 meses, todo) | Alcance |
+| 2026-10-08 | Estadísticas, calendario: Semana = semana natural en curso (una fila); Todo = 12 semanas fijas con celdas más pequeñas | La ventana móvil de 7 días partía la semana en dos filas; el tope evita que el calendario crezca sin límite |
+| 2026-10-08 | La media de 7 días no se une a través de huecos de más de 7 días (pantalla y PDF) | Una línea recta entre periodos sin datos sugería una evolución que no se ha medido |
+| 2026-10-08 | Leyenda de colores fija (las 8 emociones, no solo las del periodo) + "Sin registro" marcado con X | Los colores no se entienden sin leyenda; una leyenda fija no cambia de forma entre periodos |
+| 2026-10-08 | El gráfico de ánimo **no** marca con X los días sin registro | Un día sin registro no tiene valor en el eje Y; la línea cortada ya lo muestra y el calendario lo detalla |
 | 2026-10-06 | Fuera de alcance: PHQ-8, GAD-7, ERQ, registro de actividades, pasos (Health Connect/HealthKit), FruitNinja como indicador de impulsividad | Alcance del TFG |
 
 ## Pendiente de confirmar
