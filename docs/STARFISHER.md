@@ -1,6 +1,6 @@
 # StarFisher — Pescador de Estrellas
 
-> Estado: **código completo; pendiente montar la escena** (guía en el apartado 14), el arte y el audio.
+> Estado: **escena montada y jugable con arte provisional**. Pendientes: arte, audio y los paneles de SafeZone (libro de la colección y cielo del telescopio, con el rediseño de la Zona Segura).
 > Emociones objetivo: tristeza, soledad. `MinigameType.StarFisher`.
 > Sin arte asignado todo funciona con estrellas y brillos generados en tiempo de ejecución.
 
@@ -219,7 +219,7 @@ botón "Usar", telescopio, sincronización de colocaciones).
 
 ## 13. Pendiente
 
-1. **Montar la escena** y los paneles de SafeZone (apartado 14).
+1. ~~Montar la escena~~ (hecho). **Paneles de SafeZone** (libro de la colección y cielo del telescopio; apartado 14): se montarán con el rediseño de la Zona Segura.
 2. **Arte** (capas, 3 poses, 30 + 1 estrellas) y **textos** de cada estrella (nombre, peso, edad, historia, frase).
 3. **Audio**.
 4. Colores definitivos de cada rareza (`StarCatalog.rarityColors`).

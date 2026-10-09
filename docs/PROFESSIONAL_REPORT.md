@@ -3,7 +3,7 @@
 Especificación funcional de la parte de seguimiento de Lutra: lo que ve el usuario, el cuestionario WHO-5, el informe que el usuario exporta para su profesional y los requisitos de seguridad.
 Las definiciones y fórmulas de cada métrica están en `docs/METRICS.md`; el plan de trabajo en `docs/ROADMAP.md`.
 
-> Estado: **todo este documento es [PLAN]** salvo donde se indique [ACTUAL].
+> Estado: **implementado y montado en Unity** (fases 1-7), salvo la comprobación de edad (§6.1).
 
 ---
 
@@ -17,7 +17,7 @@ Las definiciones y fórmulas de cada métrica están en `docs/METRICS.md`; el pl
 
 ## 2. Pantalla de Estadísticas (usuario)
 
-`AppState.Charts`. **Código implementado (Fase 6)**: `ChartsView` rehecho, `ChartsController` usa `ReportDataLoader`, textos en `StatsTextBuilder` (con tests). Falta montar la pantalla en Unity (`ROADMAP.md`).
+`AppState.Charts`. **Implementado (Fase 6)**: `ChartsView` rehecho, `ChartsController` usa `ReportDataLoader`, textos en `StatsTextBuilder` (con tests).
 
 ### 2.1 Problemas actuales que se corrigen [ACTUAL]
 
@@ -37,8 +37,8 @@ De arriba abajo (scroll vertical):
 
 1. **Selector de periodo:** Semana (últimos 7 días) · Mes (**últimos 30 días**, ventana móvil para que la comparación con el periodo anterior sea justa) · Todo (desde el alta).
 2. **Resumen:** ánimo medio (carita) + flecha de tendencia + frase ("Esta semana te has sentido mejor que la anterior").
-3. **Tu ánimo:** gráfico de línea 1–5 de la serie diaria, puntos coloreados por emoción (`EmotionTheme`) y media de 7 días (línea clara; no se une a través de huecos de más de 7 días sin datos). Debajo, una leyenda fija explica ambas series.
-4. **Calendario:** mapa de calor del periodo, celdas alineadas de lunes a domingo — Semana: la semana natural en curso (lunes-domingo, una fila) · Mes: 30 días · Todo: últimas 12 semanas (tope fijo; no crece con el historial) con celdas reducidas (`_heatmapCompactScale`) a partir de 6 filas. La última fila se completa con celdas invisibles. Color de la emoción del check-in de Día; gris con una X = sin registro. Leyenda fija (8 emociones + "Sin registro") bajo el calendario y, opcionalmente, bajo el gráfico; las letras L-D se encogen junto a las columnas.
+3. **Tu ánimo:** gráfico de línea 1–5 de la serie diaria. Eje Y con las 5 caritas (arriba = muy bien) alineadas con las líneas guía; eje X con la fecha de inicio ("9 sep") y "Hoy". Puntos coloreados por emoción (`EmotionTheme`) sobre una línea diaria gris claro y fina; la media de 7 días va en gris oscuro, más gruesa y por encima (es lo más importante) y no se une a través de huecos de más de 7 días sin datos. Los días sin registro son huecos en la línea, sin marca. Debajo, la leyenda de las 8 emociones (sin "Sin registro") y un texto que explica puntos, media y huecos.
+4. **Calendario:** mapa de calor del periodo, celdas alineadas de lunes a domingo — Semana: la semana natural en curso (lunes-domingo, una fila) · Mes: 30 días · Todo: últimas 12 semanas (tope fijo; no crece con el historial) con celdas reducidas (`_heatmapCompactScale`) a partir de 6 filas. La última fila se completa con celdas invisibles. Color de la emoción del check-in de Día; gris con una X = sin registro. Leyenda fija (8 emociones + "Sin registro") bajo el calendario; las letras L-D se encogen junto a las columnas.
 5. **Tus emociones:** barras de distribución + "Has sentido X emociones distintas".
 6. **Estabilidad** (solo con ≥ 14 pares de días consecutivos): frase positiva ("Tu ánimo ha estado más estable que el mes pasado").
 7. **Qué influye en ti:** hasta 3 motivos con mayor diferencia de ánimo (↑ / ↓), mínimo 3 apariciones.
@@ -59,7 +59,7 @@ De arriba abajo (scroll vertical):
 
 Índice de bienestar de la OMS: 5 ítems, ~1 minuto, uso libre sin licencia, validado en español y con puntos de corte publicados (Topp et al., 2015). Aporta al informe una medida estandarizada (nivel A) junto a los datos diarios.
 
-> **Estado: código implementado (Fase 3).** Falta montar la pantalla en Unity (`ROADMAP.md` → "Pasos en Unity"). El protocolo de apoyo tras un índice ≤ 28 llega en la Fase 4.
+> **Estado: implementado (Fase 3)**, con el protocolo de apoyo tras un índice ≤ 28 (Fase 4).
 
 Código: `Features/Who5/` (`Who5Questionnaire` con ítems, puntuación y calendario; `Who5Screen`, `Who5Controller`, `Who5View`) y `Core/Systems/Who5Scheduler`.
 
@@ -86,7 +86,7 @@ Centro de notificaciones → notificación anclada "Cuestionario de bienestar" �
       2. ResolvePinned("who5-{fecha}") → desaparece del centro y se quita la "!"
       3. +20 monedas → EmitCoinsChanged + notificación de recompensa
       4. Programar el push del siguiente cuestionario
-      5. (Fase 4) Si índice ≤ 28 → protocolo de apoyo (§6.3)
+      5. Si índice ≤ 28 → protocolo de apoyo (§6.3)
       6. Agradecimiento: "Tu índice de bienestar: N / 100", "+20 monedas",
          "Volverá a estar disponible el 20 de octubre" → [Listo] → centro de notificaciones
 ```
@@ -136,7 +136,7 @@ float     DurationSeconds  // desde el primer ítem hasta Enviar
 
 ## 4. Exportación del informe
 
-> **Código implementado (Fase 7)** en `Features/Charts/Export/`. Falta montar el panel en Unity y que Package Manager instale NativeShare (`ROADMAP.md`).
+> **Implementado (Fase 7)** en `Features/Charts/Export/`; panel montado en `ChartsScreen` y NativeShare instalado.
 
 ### 4.1 Flujo
 
@@ -205,7 +205,7 @@ Formato pensado para Excel, SPSS, R o Python: UTF-8 con BOM, separador `,`, deci
 
 ## 5. Análisis del diario en la app
 
-> **Código implementado (Fase 5).**
+> **Implementado (Fase 5).**
 
 - `DiaryLexicon` + `DiaryLanguageAnalyzer` (clases puras, con tests) + diccionario `Assets/Resources/DiaryLexicon_es.txt` (cargado por `ReportDataLoader.Lexicon`).
 - Se calcula al abrir Estadísticas o generar el informe, a partir del título y el contenido locales. No añade campos a BD.

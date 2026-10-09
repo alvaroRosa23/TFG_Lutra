@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lutra no usa Firebase Analytics, pero Firebase Auth y Firestore incluyen la librería
+  com.google.firebase:firebase-analytics como dependencia en Android. Estos flags la
+  desactivan por completo para que no recoja ningún dato (RGPD; ver docs/BUGS.md).
+  El manifest merger de Gradle los añade al manifiesto final de la app.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.tfg.lutra.privacy">
+    <application>
+        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+        <meta-data android:name="google_analytics_adid_collection_enabled" android:value="false" />
+        <meta-data android:name="google_analytics_default_allow_ad_personalization_signals" android:value="false" />
+    </application>
+</manifest>

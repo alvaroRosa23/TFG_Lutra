@@ -131,7 +131,9 @@ Eventos: `OnBuyRequested`, `OnBuyConfirmed`, `OnBuyCancelled`, `OnPlaceRequested
 **Fuentes de monedas:**
 - Check-in diario: +5 monedas; hitos 7/14/30 días → +20/+50/+100 (`StreakManager.RegisterCheckIn`)
 - Entrada de diario: +5 monedas la primera vez al día (Preferences["lastDiaryRewardDate"]) (`DiaryController._grantDiaryReward`)
-- Completar minijuego: `Mathf.Max(3, estimatedTimeSeconds/30)` monedas (`MinigameLoader._calculateMinigameCoinReward`, requiere `_minigameDefinitions[]` en Inspector)
+- Completar minijuego: `MinigameResult.CoinReward` si el juego lo calcula (Beatmaker: puntuación/10; StarFisher: `min(coins, maxCoins)`); si no, `Mathf.Max(3, estimatedTimeSeconds/30)` (`MinigameLoader._calculateMinigameCoinReward`, requiere `_minigameDefinitions[]` en Inspector)
+- WHO-5 completado: +20 monedas (`Who5Controller`, `Who5Questionnaire.CoinReward`)
+- Tabla completa con condiciones: `docs/METRICS.md` §5
 
 ### MascotCustomizer
 12 colores de plumas predefinidos, accesorios por itemId; persiste en `UserProfile.Preferences` con claves `"featherColorIndex"` y `"mascotAccessoryId"`; restaura al cargar con `LoadSavedCustomization()`.
@@ -189,7 +191,7 @@ Pantalla de Estadísticas (`AppState.Charts`) y exportación del informe profesi
 ### ChartsScreen / ChartsController / ChartsView
 - `ChartsScreen.OnScreenFocused` → `ChartsController.OpenCharts()`.
 - `ChartsController.LoadDataForPeriod(period)`: rango con `ChartPeriod.GetRange` → `ReportDataLoader.LoadAsync` → `ChartsView.Render(data, period, chartFrom, heatmapFrom, today)`. Descarta resultados de cargas anteriores si se cambia de periodo rápido. En "Semana", el calendario muestra la semana natural en curso (una fila; el lunes siempre cae dentro de los últimos 7 días). En "Todo", el gráfico abarca todo el historial y el calendario las últimas 12 semanas (tope fijo). Expone `CurrentPeriod` y el evento `OnExportRequested`.
-- `ChartsView`: bloques periodo · resumen (carita + tendencia) · gráfico de ánimo (`UILineChart`: puntos del color de la emoción, media de 7 días; ambas líneas se cortan en los huecos: la diaria a partir de 2 días, la media a partir de `ReportCalculator.MovingAverageWindowDays`) · calendario (celdas alineadas lunes-domingo, color de la emoción del día, última fila completada con celdas invisibles, celdas reducidas con más de `_heatmapCompactAfterWeeks` filas, también la fila de letras `_heatmapWeekdays`; celdas con `HeatmapCell`: marca X en los días sin registro) · leyenda (`_legendContainers` + `_legendItemPrefab` con `HeatmapCell`: 8 emociones en orden de valencia + "Sin registro", se pinta una vez) · emociones (`StatsBarRow`) · estabilidad (oculta sin 14 pares) · qué influye en ti · qué te ayuda + respiración · WHO-5 (`UILineChart`) · hábitos · botón exportar. Todos los campos son opcionales.
+- `ChartsView`: bloques periodo · resumen (carita + tendencia) · gráfico de ánimo (`UILineChart`: puntos del color de la emoción, línea diaria y media de 7 días encima; ambas líneas se cortan en los huecos: la diaria a partir de 2 días, la media a partir de `ReportCalculator.MovingAverageWindowDays`; eje X con `_moodChartStartLabel` ("9 sep", `StatsTextBuilder.AxisDate`) y `_moodChartEndLabel` ("Hoy"); el eje Y de caritas se monta solo en Unity; texto explicativo `_moodChartCaptionLabel`; leyenda propia `_moodChartLegendContainer` sin "Sin registro") · calendario (celdas alineadas lunes-domingo, color de la emoción del día, última fila completada con celdas invisibles, celdas reducidas con más de `_heatmapCompactAfterWeeks` filas, también la fila de letras `_heatmapWeekdays`; celdas con `HeatmapCell`: marca X en los días sin registro) · leyenda del calendario (`_legendContainers` + `_legendItemPrefab` con `HeatmapCell`: 8 emociones en orden de valencia + "Sin registro", se pinta una vez) · emociones (`StatsBarRow`) · estabilidad (oculta sin 14 pares) · qué influye en ti · qué te ayuda + respiración · WHO-5 (`UILineChart`) · hábitos · botón exportar. Todos los campos son opcionales.
 
 ### ChartPeriod / ChartPeriodExtensions
 `Week` = últimos 7 días, `Month` = últimos 30 días (ventanas móviles: el periodo anterior tiene la misma duración), `AllTime` = desde el alta. `GetRange(now)`, `CurrentText()`, `PreviousText()`.
@@ -229,7 +231,7 @@ Centro de notificaciones (`AppState.Notifications`). Especificación completa en
 Carga ancladas y la primera página (30, pide una más para saber si hay otra), marca como leídas las no ancladas al abrir y pagina con "Cargar más". Atrás → MainMenu. Acción de anclada según `NotificationType`: `Who5Available` → `AppState.Who5`.
 
 ### NotificationsView
-Campos: `_backButton`, `_pinnedSection`, `_pinnedContainer`, `_pinnedCardPrefab`, `_listContainer`, `_cardPrefab`, `_groupHeaderPrefab`, `_loadMoreButton`, `_emptyState` y sprites opcionales por tipo/origen. Agrupa por "Hoy", "Ayer", "Esta semana" y fecha. Eventos: `OnBackRequested`, `OnLoadMoreRequested`, `OnPinnedActionRequested`.
+Campos: `_backButton`, `_pinnedSection`, `_pinnedContainer`, `_pinnedCardPrefab`, `_listContainer`, `_cardPrefab`, `_groupHeaderPrefab`, `_loadMoreButton`, `_emptyState` y sprites opcionales por tipo/origen. Agrupa por "Hoy", "Ayer", "Esta semana" y fecha. Eventos: `OnBackRequested`, `OnLoadMoreRequested`, `OnActionRequested(AppNotification)`.
 
 ### NotificationCard
 Icono, título, cuerpo, hora, `_unreadDot` y `_actionButton`/`_actionLabel` opcionales. `Setup(notification, icon, timeText, actionText)`.

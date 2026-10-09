@@ -76,7 +76,7 @@ namespace Lutra.Features.Charts
         {
             if (_exporting) return;
             _exporting = true;
-            _view?.SetBusy(true, "Generando tu informe…");
+            _view?.SetBusy(true, "Generando tu informe...");
 
             try
             {

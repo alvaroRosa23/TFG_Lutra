@@ -4,7 +4,15 @@
 
 - Eliminar `LutraBootstrapTest.cs` (en `Core/Utils/`)
 - Eliminar `UnlockedItem.cs` (en `Core/Data/Models/`) — reemplazado por `InventoryItem`; el archivo antiguo no se usa pero compila sin errores
-- **Investigar bug tab Tienda en SafeZone**: al pulsar el tab de Tienda oculta todo excepto BottomNavBar. Causa probable: `_roomPanel` y `_shopPanel` no son hermanos en la jerarquía (ver sección de bugs SafeZone al final de este archivo)
+- Borrar `Assets/_Recovery/0.unity` (copia de recuperación automática de Unity, 2 MB) y `Assets/Scenes/SampleScene.unity` (plantilla, ya desactivada en Build Settings)
+
+## Pendiente — Auditoría de documentación y privacidad (2026-10-09)
+
+- ~~**Firebase Analytics instalado pero sin usar.**~~ **Resuelto (2026-10-09).** Se quitó el paquete (wrappers C#, librerías nativas de iOS/tvOS/escritorio, `firebase-analytics-unity` y su línea en `mainTemplate.gradle`). En Android, Auth y Firestore siguen declarando `com.google.firebase:firebase-analytics` como dependencia, así que la librería nativa entra en la build: se desactiva por completo con `firebase_analytics_collection_deactivated` (y sin identificador de publicidad) en `Assets/Plugins/Android/LutraPrivacy.androidlib/AndroidManifest.xml`, que Gradle combina con el manifiesto de la app. En iOS, Auth y Firestore no incluyen Analytics. Unity Analytics también está desactivado (`UnityConnectSettings`).
+- ~~**Logs con datos personales en release.**~~ **Resuelto (2026-10-09).** `GameManager._configureLogging` (`RuntimeInitializeOnLoadMethod`, antes de cargar la escena) hace `Debug.unityLogger.logEnabled = Debug.isDebugBuild`: sin logs en las builds de release (había `Debug.Log` con email, nombre y UID, que en Android van a logcat). En el editor y en las Development Build se mantienen.
+- ~~**Reglas de Firestore fuera del repositorio.**~~ **Resuelto (2026-10-09).** Copia en `firestore.rules` (raíz del repositorio). Comprobado en la consola: `notifications` y `scaleResponses` se sincronizan.
+- **Colores del diario duplicados.** `DiaryView._getEmotionColor` repite los `primaryColor` de los `EmotionTheme`. Si cambia la paleta (`ROADMAP.md`), el diario no la sigue; mejor leerlos de los `EmotionTheme`.
+- **`MascotCustomizer.Start` es `async void` sin `try/catch`.** Lo permite la excepción de lifecycle de Unity, pero una excepción ahí no se registra con el formato del proyecto. Envolver en `try/catch` como el resto.
 
 ## Pendiente — Hitos de racha no entregan la decoración
 
@@ -41,13 +49,14 @@
 
 ## Bugs resueltos
 
+- Login con contraseña incorrecta mostraba "Sesión expirada": con la protección contra enumeración de emails de Firebase (activa por defecto desde 2023), el servidor devuelve `INVALID_LOGIN_CREDENTIALS` sin indicar si falla el email o la contraseña (así un atacante no puede averiguar qué emails están registrados) y el SDK de Unity lo entrega como `AuthError.Failure`, que estaba traducido como sesión expirada. Ahora `AuthManager` muestra "Email o contraseña incorrectos" en ese caso y en `InvalidCredential`
 - Token corrupto de Firebase al crear cuenta sin terminar onboarding
 - Solapamiento de secciones en EmotionCheckScreen
 - MoodButtons sin respuesta visual por Alpha 0
 - Tags de emociones y motivos no visibles por prefab mal configurado
 - BottomNavBar perdía suscripción al ocultarse con `SetActive(false)`
 - Captura de variable en lambda en BottomNavBar (`AppState target`)
-- `DateTime.UtcNow` en comparaciones de fecha causaba fallos de racha en zonas UTC+ (reemplazado por `DateTime.Today` / `DateTime.Now` en todo el proyecto; excepción pendiente en `ChartsController._getDateRange`)
+- `DateTime.UtcNow` en comparaciones de fecha causaba fallos de racha en zonas UTC+ (reemplazado por `DateTime.Today` / `DateTime.Now` en todo el proyecto; comprobado el 2026-10-09: no queda ningún `UtcNow`)
 - `GetCurrentStreak()` podía no reconocer check-in del día actual en dispositivos con offset positivo
 - `EmotionCheckController` creaba un segundo registro al re-abrir el check-in de día; ahora actualiza el existente con `UpdateEmotion`
 - Tags de emoción permitían selección múltiple; ahora son radio buttons (seleccionar uno deselecciona los demás)
@@ -83,18 +92,13 @@
 - **`ShowConfirmBuyDialog` sin información de monedas**: el diálogo de compra no mostraba el saldo actual ni el saldo resultante. Añadidos `_confirmBuyCurrentCoinsLabel` y `_confirmBuyAfterCoinsLabel`; el controller pasa `_cachedProfile.Coins` y `_cachedProfile.Coins - item.coinCost`.
 - **Botón "Mover" eliminado**: el flujo de mover un ítem ya no existe. Para mover: guardar en inventario y volver a colocar. Eliminados `_moveButton`, `OnMoveConfirmed` y `_onMoveConfirmed` de View y Controller.
 
-## Bug pendiente — Tab Tienda oculta todo (jerarquía Inspector)
+## Resuelto — Tab Tienda oculta todo (jerarquía Inspector)
 
-**Síntoma**: al pulsar el tab de Tienda se oculta todo excepto la BottomNavBar. Al volver desde otra sección con la tienda ya abierta, sí se ve.
+**Síntoma**: al pulsar el tab de Tienda se ocultaba todo excepto la BottomNavBar.
 
-**Causa probable**: `_shopPanel` es hijo de `_roomPanel` en la jerarquía de la escena. `_roomPanel.SetActive(false)` desactiva toda la jerarquía (incluyendo `_shopPanel`); el posterior `_shopPanel.SetActive(true)` pone el flag interno a true pero el padre sigue inactivo, así que no se renderiza nada. Al volver desde otra sección, `_shopPanel.activeSelf` sigue siendo true y como el padre se reactiva junto con la pantalla, se ve correctamente.
+**Causa**: `_shopPanel` era hijo de `_roomPanel`; `_roomPanel.SetActive(false)` desactivaba toda la jerarquía.
 
-**Solución**: en Unity Editor, asegurarse de que `Panel_Room` y `Panel_Shop` son **hermanos** (hijos del mismo padre), no padre/hijo:
-```
-SafeZoneScreen
-├── Panel_Room    ← _roomPanel
-└── Panel_Shop    ← _shopPanel
-```
+**Solución**: `Panel_Room` y `Panel_Shop` son **hermanos** (los dos hijos de `SafeZoneScreen`). Comprobado en `Main.unity` el 2026-10-09 y confirmado por el autor: el bug ya no aparece. Mantener esta jerarquía en el rediseño panorámico de la Zona Segura.
 
 ## Bugs resueltos — auditoría técnica (sesión 2)
 

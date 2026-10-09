@@ -50,6 +50,17 @@ namespace Lutra.Core.Architecture
 
         // ── Unity lifecycle ────────────────────────────────────────────
 
+        /// <summary>
+        /// En las builds de release no se escribe ningún log: varios incluyen el email, el nombre
+        /// o el UID del usuario, y en Android van a logcat. Se ejecuta antes de cargar la escena,
+        /// así que cubre también los Awake. En el editor y en las Development Build se mantienen.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void _configureLogging()
+        {
+            Debug.unityLogger.logEnabled = Debug.isDebugBuild;
+        }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)

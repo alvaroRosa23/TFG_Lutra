@@ -7,15 +7,15 @@ Marca cada tarea al terminarla y actualiza el doc de referencia correspondiente 
 
 ---
 
-## ⭐ PRIORIDAD — Mejoras del gráfico "Tu ánimo" (acordado 2026-10-08)
+## Mejoras del gráfico "Tu ánimo" (acordado 2026-10-08, hecho 2026-10-09)
 
-Empezar por aquí en la próxima sesión. Contexto: al revisar el gráfico montado, sin ejes no se entiende qué es arriba/abajo ni qué día es cada punto, hay colores de emoción casi iguales y la tendencia es lo que menos se ve.
+Contexto: sin ejes no se entendía qué es arriba/abajo ni qué día es cada punto, había colores de emoción casi iguales y la tendencia era lo que menos se veía.
 
-- [ ] **Eje Y con caritas** (solo Unity): columna a la izquierda de `MoodChart` con las 5 caritas (arriba = muy bien). `VerticalLayoutGroup` con padding arriba/abajo = `_padding` del `UILineChart`, 5 hijos con *Flexible Height* 1 y la carita centrada: el rango Y es 0,5–5,5, así que cada nivel ocupa una franja igual y quedan alineadas con las líneas guía. Gráfico y columna dentro de una fila con `HorizontalLayoutGroup`.
-- [ ] **Eje X con fechas** (código): dos textos bajo el gráfico que `ChartsView` rellena según el periodo — inicio del eje (p. ej. "9 sep") a la izquierda y "Hoy" a la derecha. Nuevos campos opcionales en `ChartsView`; formato de fecha en `StatsTextBuilder`.
-- [ ] **Colores de las líneas** (Inspector de `MoodChart`): línea diaria gris claro `#BDBDBD` grosor 2; media de 7 días gris oscuro `#555555` (o acento no azul) grosor 4. La línea azul actual se confunde con los puntos de Tristeza y la tendencia, que es lo importante, es la menos visible.
-- [ ] **Paleta de emociones**: Agobio ≈ Energía (rosa/salmón) y Ansiedad ≈ Nostalgia (morados) no se distinguen. Proponer 8 colores distinguibles (también con daltonismo) manteniendo el estilo. **Decisión del autor**: `EmotionTheme.primaryColor` también lo usa `ThemeManager` para teñir la app.
-- [ ] **Sin X en el gráfico** (decidido): un día sin registro no tiene valor de ánimo; la línea ya se corta en los huecos. Texto explicativo bajo el gráfico: "…Los huecos son días sin registro." Quitar la entrada "Sin registro" de la leyenda del gráfico (dejarla en la del calendario) → requiere que la leyenda permita omitirla por contenedor (código).
+- [x] **Eje Y con caritas** (Unity): `MoodChartRow` (`HorizontalLayoutGroup`) con `MoodAxisY` (`VerticalLayoutGroup`, padding arriba/abajo = `_padding` del `UILineChart`, 14) y `MoodChart`. El rango Y es 0,5–5,5, así que cada carita queda centrada en su línea guía.
+- [x] **Eje X con fechas**: `StatsTextBuilder.AxisDate` ("9 sep", meses propios) y "Hoy" en `_moodChartStartLabel` / `_moodChartEndLabel` (ocultos sin datos). Fila `MoodAxisX` con padding izquierdo = columna Y + spacing + `_padding`.
+- [x] **Colores de las líneas**: diaria `#BDBDBD` grosor 2; media de 7 días `#555555` grosor 4, dibujada **encima** de la diaria (`UILineChart`).
+- [ ] **Paleta de emociones**: Agobio ≈ Energía (rosa/salmón) y Ansiedad ≈ Nostalgia (morados) no se distinguen. Propuesta: Ansiedad `#6A5ACD`, Agobio `#9E3B6E`, Nostalgia `#B08A5B`, Energía `#E040A0` (resto igual). **Decisión del autor**: `EmotionTheme.primaryColor` también lo usa `ThemeManager` para teñir la app, y `DiaryView._getEmotionColor` tiene los mismos colores copiados (habría que cambiarlos también o leerlos de `EmotionTheme`).
+- [x] **Sin X en el gráfico**: leyenda del gráfico en `_moodChartLegendContainer` (8 emociones, sin "Sin registro"; `_legendContainers` queda para el calendario) y texto explicativo `_moodChartCaptionLabel` (`StatsTextBuilder.MoodChartCaption`).
 
 ## Fase 1 · Datos y captura
 
@@ -59,7 +59,7 @@ Empezar por aquí en la próxima sesión. Contexto: al revisar el gráfico monta
 - [x] Al enviar: guardar, `ResolvePinned`, +20 monedas con `RewardGrant`, programar el siguiente aviso
 - [x] Tests de `Who5Questionnaire`
 - [ ] Verificar el texto oficial en español de los ítems (antes de publicar)
-- [ ] Protocolo de apoyo si el índice es ≤ 28 → Fase 4 (marcado en `Who5Controller._safeSubmit`)
+- [x] Protocolo de apoyo si el índice es ≤ 28 (`SupportProtocol.CheckWho5Score` en `Who5Controller._safeSubmit`)
 
 ## Fase 4 · Seguridad y legal (código hecho, salvo la edad)
 
@@ -186,14 +186,14 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 
 ### Fase 7 — exportación
 
-- [ ] **Package Manager:** al abrir Unity se descargará NativeShare desde GitHub (`com.yasirkula.nativeshare`). **Hace falta Git instalado y en el PATH.** Si falla: *Window → Package Manager → + → Add package from git URL* → `https://github.com/yasirkula/UnityNativeShare.git`.
-- [ ] **Panel de exportación** dentro de `ChartsScreen` (por encima del resto):
+- [x] **Package Manager:** al abrir Unity se descargará NativeShare desde GitHub (`com.yasirkula.nativeshare`). **Hace falta Git instalado y en el PATH.** Si falla: *Window → Package Manager → + → Add package from git URL* → `https://github.com/yasirkula/UnityNativeShare.git`.
+- [x] **Panel de exportación** dentro de `ChartsScreen` (por encima del resto):
   - GameObject con `ExportPanelView` (siempre activo) y un hijo `_panel` (fondo que bloquee la pantalla, empieza desactivado).
   - 4 botones de periodo → `_last7Button` ("7 días"), `_last30Button` ("30 días"), `_last90Button` ("3 meses"), `_allTimeButton` ("Todo").
   - `Toggle` "Incluir mis notas y mi diario" → `_includeNotesToggle`; `Toggle` "Incluir datos en bruto (CSV)" → `_includeCsvToggle`.
   - Botones "Generar y compartir" → `_generateButton`, "Cancelar" → `_cancelButton`; texto de estado → `_statusLabel`.
-- [ ] **`ReportExportController`** en `ChartsScreen` (o en el panel): asignar `_charts` (el `ChartsController`) y `_view` (el `ExportPanelView`).
-- [ ] **Probar en el editor:** Estadísticas → Exportar → Generar: se abre la carpeta con `Lutra_Informe_fecha.pdf` y `Lutra_Datos_fecha.zip`. En el móvil se abre el menú de compartir.
+- [x] **`ReportExportController`** en `ChartsScreen` (o en el panel): asignar `_charts` (el `ChartsController`) y `_view` (el `ExportPanelView`).
+- [x] **Probar en el editor:** Estadísticas → Exportar → Generar: se abre la carpeta con `Lutra_Informe_fecha.pdf` y `Lutra_Datos_fecha.zip`. En el móvil se abre el menú de compartir.
 
 ---
 
@@ -231,6 +231,12 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 | 2026-10-08 | La media de 7 días no se une a través de huecos de más de 7 días (pantalla y PDF) | Una línea recta entre periodos sin datos sugería una evolución que no se ha medido |
 | 2026-10-08 | Leyenda de colores fija (las 8 emociones, no solo las del periodo) + "Sin registro" marcado con X | Los colores no se entienden sin leyenda; una leyenda fija no cambia de forma entre periodos |
 | 2026-10-08 | El gráfico de ánimo **no** marca con X los días sin registro | Un día sin registro no tiene valor en el eje Y; la línea cortada ya lo muestra y el calendario lo detalla |
+| 2026-10-09 | Gráfico de ánimo con ejes (caritas en Y, fecha de inicio y "Hoy" en X), media de 7 días oscura y gruesa por encima de la línea diaria gris | Sin ejes el gráfico no se entendía; la tendencia es lo más importante y era lo que menos se veía |
+| 2026-10-09 | Los textos de la UI usan "..." en vez de "…" | La fuente `cheeseusauceu` no tiene el carácter U+2026 y TMP lo sustituía por un espacio |
+| 2026-10-09 | Login fallido por credenciales: "Email o contraseña incorrectos" | Con la protección contra enumeración de emails, Firebase no distingue email y contraseña (`BUGS.md`) |
+| 2026-10-09 | **Sin Firebase Analytics**: paquete quitado y librería nativa de Android desactivada por manifiesto | No se usaba y recogería datos que el consentimiento no menciona (datos de salud, RGPD art. 9) |
+| 2026-10-09 | **Sin logs en las builds de release** | Varios logs incluían email, nombre y UID |
+| 2026-10-09 | Paneles de la colección de estrellas y del telescopio en SafeZone: se montan con el rediseño de la Zona Segura | Evitar montarlos dos veces |
 | 2026-10-06 | Fuera de alcance: PHQ-8, GAD-7, ERQ, registro de actividades, pasos (Health Connect/HealthKit), FruitNinja como indicador de impulsividad | Alcance del TFG |
 
 ## Pendiente de confirmar

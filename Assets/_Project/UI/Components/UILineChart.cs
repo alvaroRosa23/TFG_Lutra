@@ -77,16 +77,18 @@ namespace Lutra.UI.Components
                 _addSegment(vh, a, b, _gridWidth, _gridColor);
             }
 
-            for (int i = 1; i < _secondary.Count; i++)
-            {
-                if (_secondary[i].x - _secondary[i - 1].x > _secondaryMaxGap) continue;
-                _addSegment(vh, _toLocal(_secondary[i - 1], rect), _toLocal(_secondary[i], rect), _secondaryWidth, _secondaryColor);
-            }
-
+            // Orden de dibujo: línea principal, serie secundaria encima (la tendencia es lo que más
+            // debe verse) y los puntos al final.
             for (int i = 1; i < _primary.Count; i++)
             {
                 if (_primary[i].x - _primary[i - 1].x > _maxGap) continue;
                 _addSegment(vh, _toLocal(_primary[i - 1], rect), _toLocal(_primary[i], rect), _lineWidth, _lineColor);
+            }
+
+            for (int i = 1; i < _secondary.Count; i++)
+            {
+                if (_secondary[i].x - _secondary[i - 1].x > _secondaryMaxGap) continue;
+                _addSegment(vh, _toLocal(_secondary[i - 1], rect), _toLocal(_secondary[i], rect), _secondaryWidth, _secondaryColor);
             }
 
             for (int i = 0; i < _primary.Count; i++)

@@ -6,13 +6,15 @@ La infraestructura base está lista (`IMinigame`, `MinigameBase`, `MinigameLoade
 
 **Beatmaker**: implementado y montado (escena `Assets/Scenes/Beatmaker.unity`).
 
-**BreathJump**: código completo; **pendiente montar la escena en el editor** (guía paso a paso en su sección).
+**BreathJump**: implementado y montado (escena `Assets/Scenes/BreathJump.unity`), jugable con arte provisional (placeholders).
 
-**FruitNinja**: código completo (temática por decidir); **pendiente montar la escena** (guía en su sección).
+**FruitNinja**: implementado y montado (escena `Assets/Scenes/FruitNinja.unity`), jugable con arte provisional; temática por decidir.
 
-**StarFisher**: código completo (minijuego, colección de estrellas, telescopio de SafeZone y
-sincronización con Firestore); **pendiente montar la escena**, arte y audio. Diseño y guía de
-montaje en `docs/STARFISHER.md`.
+**StarFisher**: implementado y montado (escena `Assets/Scenes/StarFisher.unity`), jugable con arte provisional.
+Pendientes: arte, audio y los paneles de la colección de estrellas y el telescopio en SafeZone
+(se harán con el rediseño de la Zona Segura). Diseño y guía en `docs/STARFISHER.md`.
+
+Las tres escenas están activas en Build Settings. Las guías de montaje de cada sección se conservan como referencia.
 
 El resto de carpetas de minijuegos están pendientes de implementar.
 
@@ -21,13 +23,13 @@ El resto de carpetas de minijuegos están pendientes de implementar.
 | Orden | Carpeta | Mecánica | Emociones objetivo |
 |---|---|---|---|
 | 1 | `Unpacking/` | Ordenar objetos | tristeza, agotamiento |
-| 2 | `FruitNinja/` | Cortar objetos — **código listo, falta escena** | frustración, ira |
+| 2 | `FruitNinja/` | Cortar objetos — **implementado** (arte provisional) | frustración, ira |
 | 3 | `Beatmaker/` | Secuenciador 8 pistas × 8 beats — **implementado** | tristeza, apatía |
 | 4 | `SandCastle/` | Arena + acelerómetro | estrés |
 | 5 | `FluidSim/` | Fluido interactivo | ansiedad |
-| 6 | `BreathJump/` | Plataformas con respiración como control — **código listo, falta escena** | ansiedad, agobio |
+| 6 | `BreathJump/` | Plataformas con respiración como control — **implementado** (arte provisional) | ansiedad, agobio |
 | 7 | `Puzzle/` | Por definir | ansiedad, rumiación |
-| 8 | `StarFisher/` | Astronauta pesca estrellas con frases — **código listo, falta escena** (`docs/STARFISHER.md`) | tristeza, soledad |
+| 8 | `StarFisher/` | Astronauta pesca estrellas con frases — **implementado** (arte provisional; `docs/STARFISHER.md`) | tristeza, soledad |
 
 Crear las carpetas en `Assets/_Project/Minigames/`.
 
@@ -233,7 +235,7 @@ igual para todos los minijuegos (`MinigamesController._getRecordText`).
    de BPM, texto de puntuación y botón de salida.
 4. Registrar la escena en `MinigameLoader._minigameScenes` (`MinigameSceneData { type = Beatmaker, sceneName = "..." }`).
 
-## BreathJump (código completo, pendiente escena)
+## BreathJump (implementado, arte provisional)
 
 La nutria avanza hacia la derecha, subiendo suavemente, por plataformas generadas de forma
 procedural. Cada salto es **una respiración** con ritmo fijo **4-6** (inspirar 4 s, espirar 6 s).
@@ -463,7 +465,7 @@ mantener pulsado oscurece bordes y hace zoom, soltar salta y aterriza en el cent
 toques cortos no saltan, caer reaparece, el botón de salida vuelve a la lista y la meta abre
 PostMinigameScreen. Para probar rápido el final, bajar `breathsToComplete` a 3 en el Inspector.
 
-## FruitNinja (código completo, pendiente escena)
+## FruitNinja (implementado, arte provisional)
 
 Nombre en clave: **la temática de lo que se corta está por decidir** (no son frutas). Los
 elementos son genéricos (`SliceableView` + `SliceableDefinition`); sin assets asignados se
@@ -582,7 +584,7 @@ estimada ya puesta a 120 s; el nombre visible "Frutas Frutosas" habrá que cambi
 `releaseEndSeconds` (10) y `calmStartSeconds` (20); para ver especiales, subir `specialChancePerWave` a 1
 y bajar `minSecondsBetweenSpecials`.
 
-## StarFisher (código completo, pendiente escena)
+## StarFisher (implementado, arte provisional)
 
 Documentación completa (diseño, reglas, probabilidades, persistencia, archivos y montaje paso a
 paso) en **`docs/STARFISHER.md`**. Resumen: 5 lanzamientos; barra de fuerza que oscila; espera de

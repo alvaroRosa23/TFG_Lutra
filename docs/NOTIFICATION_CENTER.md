@@ -2,7 +2,7 @@
 
 Bandeja dentro de la app, accesible desde el menú principal, que guarda las recompensas obtenidas, el resumen semanal y los avisos importantes (cuestionario WHO-5, recursos de apoyo).
 
-> Estado: **código implementado (fases 2, 3 y 4)**; falta montar la pantalla, los prefabs y el botón en Unity (`docs/ROADMAP.md` → "Pasos en Unity").
+> Estado: **implementado y montado en Unity** (fases 2, 3 y 4).
 
 **No confundir** con `NotificationManager`, que programa **notificaciones push del sistema operativo** (recordatorio diario, aviso de racha). Los dos conviven:
 
@@ -76,7 +76,7 @@ Campos en Firestore: `createdAt` (ISO 8601), `type`, `title`, `body`, `coins`, `
 - Unión por `RemoteId`: lo que falta en local se descarga (`sync: false`) y lo que falta en remoto se sube.
 - Si existe en los dos lados, **leída y resuelta ganan**: `IsRead = local || remoto`; si uno tiene `ResolvedAt`, el otro lo adopta (y deja de estar anclada). Si el remoto va por detrás, se vuelve a subir.
 - Al terminar llama a `NotificationCenter.RefreshAttention()` para actualizar la "!".
-- **Pendiente en consola:** permitir `users/{uid}/notifications` en las reglas de Firestore.
+- Reglas de Firestore: cubiertas por `match /users/{userId}/{document=**}` (`firestore.rules`); comprobado que se sincronizan.
 
 ---
 
@@ -147,7 +147,7 @@ MostrarExclamación = existe anclada sin resolver  ||  existe no anclada sin lee
 |---|---|
 | `NotificationsScreen` | `UIScreen`; en `OnScreenFocused` llama a `NotificationsController.OpenNotifications()` |
 | `NotificationsController` | Carga ancladas + primera página, marca leídas, pagina; "atrás" → MainMenu; acciones: "Hacer ahora" (`Who5Available` → `AppState.Who5`) y "Ver recursos" (`Support` → `SupportDialog.ShowResources`) |
-| `NotificationsView` | Pinta la sección "Importante", la lista agrupada y el estado vacío; eventos `OnBackRequested`, `OnLoadMoreRequested`, `OnPinnedActionRequested` |
+| `NotificationsView` | Pinta la sección "Importante", la lista agrupada y el estado vacío; eventos `OnBackRequested`, `OnLoadMoreRequested`, `OnActionRequested(AppNotification)` |
 | `NotificationCard` | Tarjeta: icono, título, cuerpo, hora, punto de no leída, botón de acción opcional |
 | `NotificationTimeFormatter` | Clase pura: cabeceras ("Hoy", "Ayer", "Esta semana", "3 de octubre") y hora ("18:42", "lunes, 18:42") |
 

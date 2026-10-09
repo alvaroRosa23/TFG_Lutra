@@ -96,7 +96,7 @@ namespace Lutra.Features.Settings
         {
             try
             {
-                _view?.ShowFeedback("Cambiando contraseña…");
+                _view?.ShowFeedback("Cambiando contraseña...");
                 await Settings.ChangePassword(oldPassword, newPassword);
                 _view?.ShowFeedback("Contraseña actualizada correctamente.");
             }
@@ -139,7 +139,7 @@ namespace Lutra.Features.Settings
         {
             try
             {
-                _view?.ShowFeedback("Exportando datos…");
+                _view?.ShowFeedback("Exportando datos...");
                 string path = await Settings.ExportUserData();
                 FileSharer.Share(new[] { path }, "Mis datos de Lutra", "Copia de todos mis datos de Lutra.");
                 _view?.ShowFeedback("Datos exportados correctamente.");

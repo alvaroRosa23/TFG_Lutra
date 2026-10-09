@@ -27,6 +27,21 @@ namespace Lutra.Tests
         }
 
         [Test]
+        public void EjeX_FechaCorta()
+        {
+            Assert.AreEqual("9 sep", StatsTextBuilder.AxisDate(new DateTime(2026, 9, 9)));
+            Assert.AreEqual("1 ene", StatsTextBuilder.AxisDate(new DateTime(2027, 1, 1)));
+            Assert.AreEqual("31 dic", StatsTextBuilder.AxisDate(new DateTime(2026, 12, 31)));
+        }
+
+        [Test]
+        public void TextoGrafico_SoloConDatos()
+        {
+            Assert.IsNull(StatsTextBuilder.MoodChartCaption(_withMood(null, 0)));
+            StringAssert.Contains("huecos son días sin registro", StatsTextBuilder.MoodChartCaption(_withMood(3f, 3)));
+        }
+
+        [Test]
         public void Resumen_SinDatosSuficientes()
         {
             Assert.AreEqual("Te faltan 2 check-ins del día para ver tu resumen.",

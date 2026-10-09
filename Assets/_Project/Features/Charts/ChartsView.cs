@@ -39,6 +39,13 @@ namespace Lutra.Features.Charts
         [Header("Tu ánimo (gráfico)")]
         [SerializeField] private UILineChart     _moodChart;
         [SerializeField] private TextMeshProUGUI _moodChartEmptyLabel;
+        [Tooltip("Eje X: fecha del primer día (izquierda) y \"Hoy\" (derecha). Opcionales.")]
+        [SerializeField] private TextMeshProUGUI _moodChartStartLabel;
+        [SerializeField] private TextMeshProUGUI _moodChartEndLabel;
+        [Tooltip("Texto explicativo bajo el gráfico (puntos, media de 7 días y huecos). Opcional.")]
+        [SerializeField] private TextMeshProUGUI _moodChartCaptionLabel;
+        [Tooltip("Leyenda del gráfico: solo las 8 emociones, sin \"Sin registro\" (en el gráfico un día sin registro es un hueco).")]
+        [SerializeField] private Transform       _moodChartLegendContainer;
 
         [Header("Calendario")]
         [Tooltip("Contenedor con GridLayoutGroup de 7 columnas (lunes a domingo).")]
@@ -52,7 +59,7 @@ namespace Lutra.Features.Charts
         [SerializeField] private GridLayoutGroup _heatmapWeekdays;
 
         [Header("Leyenda de emociones")]
-        [Tooltip("Contenedores donde pintar la leyenda (p. ej. bajo el gráfico y bajo el calendario). Se rellenan una vez: las 8 emociones + \"Sin registro\".")]
+        [Tooltip("Contenedores donde pintar la leyenda completa (p. ej. bajo el calendario). Se rellenan una vez: las 8 emociones + \"Sin registro\". La del gráfico va en _moodChartLegendContainer.")]
         [SerializeField] private Transform[] _legendContainers;
         [Tooltip("Prefab con HeatmapCell (muestra de color, marca de sin registro y texto).")]
         [SerializeField] private GameObject  _legendItemPrefab;
@@ -186,6 +193,9 @@ namespace Lutra.Features.Charts
         {
             string empty = StatsTextBuilder.MoodChartEmpty(data);
             _setOptionalText(_moodChartEmptyLabel, empty);
+            _setOptionalText(_moodChartStartLabel, empty == null ? StatsTextBuilder.AxisDate(axisFrom) : null);
+            _setOptionalText(_moodChartEndLabel,   empty == null ? StatsTextBuilder.AxisToday : null);
+            _setOptionalText(_moodChartCaptionLabel, StatsTextBuilder.MoodChartCaption(data));
             if (_moodChart == null) return;
 
             var days      = data.Mood.Daily.Where(d => d.Date >= axisFrom && d.Date <= axisTo).ToList();
@@ -241,21 +251,30 @@ namespace Lutra.Features.Charts
             _rebuildLayout(_heatmapContainer);
         }
 
-        /// <summary>Leyenda fija (orden de valencia del enum): una muestra por emoción y "Sin registro".</summary>
+        /// <summary>
+        /// Leyendas fijas (orden de valencia del enum): una muestra por emoción, y "Sin registro"
+        /// solo en las del calendario (en el gráfico un día sin registro es un hueco en la línea).
+        /// </summary>
         private void _buildLegend()
         {
-            if (_legendBuilt || _legendItemPrefab == null || _legendContainers == null) return;
+            if (_legendBuilt || _legendItemPrefab == null) return;
             _legendBuilt = true;
 
-            foreach (var container in _legendContainers)
-            {
-                if (container == null) continue;
-                _clearContainer(container);
-                foreach (EmotionType emotion in Enum.GetValues(typeof(EmotionType)))
-                    _setCell(Instantiate(_legendItemPrefab, container, false), _emotionColor(emotion), false, emotion.ToDisplayName());
+            if (_legendContainers != null)
+                foreach (var container in _legendContainers)
+                    _buildLegendIn(container, includeNoRecord: true);
+            _buildLegendIn(_moodChartLegendContainer, includeNoRecord: false);
+        }
+
+        private void _buildLegendIn(Transform container, bool includeNoRecord)
+        {
+            if (container == null) return;
+            _clearContainer(container);
+            foreach (EmotionType emotion in Enum.GetValues(typeof(EmotionType)))
+                _setCell(Instantiate(_legendItemPrefab, container, false), _emotionColor(emotion), false, emotion.ToDisplayName());
+            if (includeNoRecord)
                 _setCell(Instantiate(_legendItemPrefab, container, false), _heatmapEmptyColor, true, _noRecordLegendText);
-                _rebuildLayout(container);
-            }
+            _rebuildLayout(container);
         }
 
         private void _renderEmotions(ReportData data)

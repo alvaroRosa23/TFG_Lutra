@@ -137,7 +137,7 @@ Assets/
 | `sqlite-net-pcl` (Plugins/SQLite/) | ORM SQLite local |
 | `com.unity.nuget.newtonsoft-json` | JSON en UserProfile y EmotionRecord |
 | `TextMeshPro` | Todos los textos de la UI |
-| Firebase Auth + Firestore + Analytics | SDK instalado via `.unitypackage` |
+| Firebase Auth + Firestore | SDK instalado via `.unitypackage`. **Analytics no se usa**: su paquete se quitó, y la librería nativa que Auth/Firestore arrastran en Android está desactivada en `Assets/Plugins/Android/LutraPrivacy.androidlib` |
 | URP 2D | Pipeline de renderizado |
 | `com.yasirkula.nativeshare` (git, MIT) | Menú nativo de compartir para el informe y la exportación de datos (`FileSharer`; define `NATIVE_SHARE` vía *version define* de `LutraCore.asmdef`). Requiere Git instalado |
 
@@ -215,12 +215,13 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 **Pendiente antes del build final** (ver `docs/BUGS.md`):
 - Eliminar `LutraBootstrapTest.cs`
 - Eliminar `UnlockedItem.cs` (reemplazado por `InventoryItem`; existe pero no se usa)
-- Investigar bug de tab Tienda en SafeZone (ver sección SafeZone más abajo)
-- **[EDITOR]** Añadir `ColorblindFeature` al `Renderer2D.asset`: Project → Settings/Renderer2D → Add Renderer Feature → Colorblind Feature → asignar shader `Lutra/Colorblind`
+- Borrar `Assets/_Recovery/0.unity` (copia de recuperación de Unity) y `Assets/Scenes/SampleScene.unity` (ya desactivada en Build Settings)
 
-**Minijuegos**: Beatmaker implementado; BreathJump, FruitNinja y StarFisher con código listo (falta montar las escenas); 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
+`ColorblindFeature` ya está añadido al `Renderer2D.asset` con el shader `Lutra/Colorblind`.
 
-**Estadísticas, informe profesional y centro de notificaciones** (código de las fases 1-7 completo, con tests; falta montar las pantallas en Unity — lista en `docs/ROADMAP.md` → "Pasos en Unity y consola" — y la comprobación de edad ≥ 18): usuarios ≥ 18 años; un profesional usa Lutra con sus pacientes y el paciente exporta el informe (PDF + CSV). Antes de tocar `Features/Charts`, minijuegos (ánimo antes/después), recompensas o el diario, leer `docs/METRICS.md` y el registro de decisiones de `docs/ROADMAP.md`. Puntos clave:
+**Minijuegos**: Beatmaker, BreathJump, FruitNinja y StarFisher implementados, con escenas montadas y jugables; los tres últimos con arte provisional (placeholders). StarFisher: faltan los paneles de la colección y el telescopio en SafeZone (con el rediseño de la Zona Segura). 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
+
+**Estadísticas, informe profesional y centro de notificaciones** (fases 1-7 completas en código, con tests, y montadas en Unity; falta la comprobación de edad ≥ 18): usuarios ≥ 18 años; un profesional usa Lutra con sus pacientes y el paciente exporta el informe (PDF + CSV). Antes de tocar `Features/Charts`, minijuegos (ánimo antes/después), recompensas o el diario, leer `docs/METRICS.md` y el registro de decisiones de `docs/ROADMAP.md`. Puntos clave:
 - Las estadísticas excluyen siempre los registros con `Source != RecordSource.User`
 - `IntensityLevel` es una copia de `MoodLevel`: no usarlo en métricas
 - Toda recompensa nueva debe emitir `EventBus.EmitRewardGranted` para que aparezca en el centro de notificaciones
@@ -230,7 +231,7 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 - Navegar a MainMenu / EmotionCheck tras login, arranque u onboarding con `ConsentGate.ContinueTo`, nunca con `TransitionTo` directo
 - Descartado hasta nuevo aviso: Affect Grid y sueño en el check-in. Pendiente: comprobación de edad ≥ 18
 
-**Firestore**: todo lo que consigue el usuario debe sincronizarse para restaurarse en otro dispositivo. Las features **no** suben nada a mano: cada escritura de `DataRepository` llama a `CloudSync.Push*` y `CloudSync.SyncAllAsync` reconcilia al iniciar sesión y al abrir la app. Al añadir datos nuevos: id estable (`RemoteId` GUID), `Save`/`Get` en `FirestoreManager`, `Push*` en la escritura de `DataRepository` y un paso en `CloudSync._syncAll`. Las escrituras que vienen de Firestore usan `sync: false`. Las colecciones nuevas necesitan permiso en las reglas de Firestore.
+**Firestore**: todo lo que consigue el usuario debe sincronizarse para restaurarse en otro dispositivo. Las features **no** suben nada a mano: cada escritura de `DataRepository` llama a `CloudSync.Push*` y `CloudSync.SyncAllAsync` reconcilia al iniciar sesión y al abrir la app. Al añadir datos nuevos: id estable (`RemoteId` GUID), `Save`/`Get` en `FirestoreManager`, `Push*` en la escritura de `DataRepository` y un paso en `CloudSync._syncAll`. Las escrituras que vienen de Firestore usan `sync: false`. Las subcolecciones nuevas de `users/{uid}` ya están cubiertas por las reglas (`firestore.rules`); una colección fuera de `users` necesitaría una regla nueva (en la consola y en ese archivo).
 
 ---
 
@@ -309,8 +310,8 @@ Si `Setup()` no se llamó (prefab con componente duplicado), los handlers de dra
 if (_rectTransform == null || _canvasGroup == null || _rootCanvas == null) return;
 ```
 
-**Bug pendiente — Tab Tienda oculta todo**
-Al pulsar el tab de Tienda, `_roomPanel.SetActive(false)` puede apagar también `_shopPanel` si este es hijo de `_roomPanel` en la jerarquía. La jerarquía correcta es que sean **hermanos** (hijos del mismo padre), no padre/hijo:
+**Tab Tienda oculta todo (resuelto; mantener la jerarquía)**
+Al pulsar el tab de Tienda, `_roomPanel.SetActive(false)` apagaba también `_shopPanel` cuando este era hijo de `_roomPanel`. Ya son hermanos en `Main.unity` y el bug no aparece; mantenerlo así en el rediseño panorámico de la Zona Segura. La jerarquía correcta es que sean **hermanos** (hijos del mismo padre), no padre/hijo:
 ```
 SafeZoneScreen
 ├── Panel_Room    ← _roomPanel

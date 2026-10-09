@@ -36,7 +36,7 @@ namespace Lutra.Features.Who5
             "Piensa en cómo te has sentido durante las últimas dos semanas. " +
             "Para cada frase, elige la opción que mejor lo describa.";
 
-        public const string ItemPrefix = "Durante las últimas dos semanas…";
+        public const string ItemPrefix = "Durante las últimas dos semanas...";
 
         public static readonly string[] Items =
         {

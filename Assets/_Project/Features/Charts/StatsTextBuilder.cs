@@ -104,6 +104,21 @@ namespace Lutra.Features.Charts
         public static string MoodChartEmpty(ReportData data)
             => data.Mood.N == 0 ? "Aún no hay check-ins del día en este periodo." : null;
 
+        /// <summary>Texto bajo el gráfico de ánimo; null sin datos (se oculta junto al gráfico).</summary>
+        public static string MoodChartCaption(ReportData data)
+            => data.Mood.N == 0 ? null
+             : "Cada punto es un día, del color de la emoción que registraste. "
+             + "La línea gruesa es tu media de 7 días. Los huecos son días sin registro.";
+
+        /// <summary>Etiqueta del eje X: "9 sep". Meses propios para no depender de la cultura del dispositivo.</summary>
+        public static string AxisDate(DateTime date)
+            => $"{date.Day} {_shortMonths[date.Month - 1]}";
+
+        public const string AxisToday = "Hoy";
+
+        private static readonly string[] _shortMonths =
+            { "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic" };
+
         // ── Emociones ──────────────────────────────────────────────────
 
         public static string EmotionsSummary(ReportData data)

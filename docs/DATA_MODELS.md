@@ -110,7 +110,7 @@ Envío completo de una escala validada (WHO-5). Enum `ScaleType { Who5 = 0 }`. C
 
 - **`EmotionCircumplex`**: `ValenceOf()` (`Valence`: Unpleasant / Mixed / Pleasant), `ArousalOf()` (`Arousal`: Low / High), `QuadrantOf()` (`AffectQuadrant`: Tension, LowMood, Calm, Enthusiasm, Mixed). Derivación teórica (`docs/METRICS.md` §3.1).
 - **`MotiveTags`**: `Fixed` (motivos fijos del check-in), `Parse(json)`, `GroupKey(tag)` (hobby o fijo → él mismo; texto libre → "Otros"), `DisplayName(key)`.
-- **`UserProfile.Preferences`** — claves en uso: `consentVersion`, `consentDate`, `diaryLanguageAnalysis` (`ConsentGate`), `lastDiaryRewardDate` (`DiaryController`).
+- **`UserProfile.Preferences`** — claves en uso: `consentVersion`, `consentDate`, `diaryLanguageAnalysis` (`ConsentGate`), `lastDiaryRewardDate` (`DiaryController`), `featherColorIndex`, `mascotAccessoryId` (`MascotCustomizer`).
 
 ---
 
@@ -126,6 +126,7 @@ EmotionType                 EmotionBefore
 EmotionType                 EmotionAfter
 Dictionary<string, float>   Metrics
 DateTime                    StartTime
+int?                        CoinReward          // monedas calculadas por el juego; null = fórmula por defecto de MinigameLoader
 ```
 
 ### AppSettings / UserAccount
@@ -156,6 +157,9 @@ Usado en `EmotionRecord.Source`. `DataRepository.GetLastEmotion()` filtra `Sourc
 | `Joy` | 7 | Alegría |
 
 Nombres en español: usar siempre las extensiones `ToDisplayName()` de `EmotionType`, `MinigameType` y `HobbyType` (en el mismo archivo que cada enum, como `StarRarity`). No reimplementar `switch` de nombres.
+
+### MinigameType
+`Unpacking=0, FruitNinja=1, Beatmaker=2, SandCastle=3, FluidSim=4, BreathJump=5, Puzzle=6, StarFisher=7` (se guarda como int en `MinigameSession.MinigameId`: no reordenar). Implementados: Beatmaker, BreathJump, FruitNinja y StarFisher (`docs/MINIGAMES.md`).
 
 ### MinigameTag (12 valores)
 ```

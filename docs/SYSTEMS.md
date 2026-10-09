@@ -74,9 +74,9 @@ OnEmotionModalRequested()                   EmitEmotionModalRequested()      // 
 ## Core/Systems
 
 ### AuthManager
-Firebase Auth: `RegisterWithEmail`, `LoginWithEmail`, `SendPasswordResetEmail`, `Logout`, `RefreshCurrentUser`; propiedades `IsLoggedIn`, `CurrentUserId`, `CurrentEmail`.
+Firebase Auth: `RegisterWithEmail`, `LoginWithEmail`, `SendPasswordResetEmail`, `ChangePassword`, `DeleteAccount`, `Logout`, `RefreshCurrentUser`; propiedades `IsLoggedIn`, `CurrentUserId`, `CurrentEmail`.
 - Validación de contraseña: mínimo 8 caracteres, una mayúscula, un número
-- Mensajes de error traducidos al español en `_getFirebaseErrorMessage`
+- Mensajes de error traducidos al español en `_getFirebaseErrorMessage`. Con la protección contra enumeración de emails de Firebase, un email o contraseña incorrectos llegan como `AuthError.Failure` con `INVALID_LOGIN_CREDENTIALS` → "Email o contraseña incorrectos" (no se distingue cuál de los dos falla, a propósito)
 
 ### FirestoreManager
 Solo lee y escribe documentos; la sincronización la coordina `CloudSync`. Los `Save*` propagan excepciones (CloudSync las registra); los `Get*` devuelven null si falla la lectura.
@@ -91,7 +91,9 @@ Solo lee y escribe documentos; la sincronización la coordina `CloudSync`. Los `
 - `SetInventoryPlacement` — mapa `inventoryPlacements` (índice < 0 borra la clave)
 - `IncrementCoins(userId, delta)` — incremento atómico; `SaveCoins(userId, coins)` escribe el total y `syncVersion`
 - `SaveStarEntry` / `GetStarCollection` — `stars/{starId}`
-- `DeleteUserData` borra el documento y las subcolecciones `diary`, `emotions`, `minigameSessions` y `stars`
+- `SaveNotification` / `GetNotifications` — `notifications/{remoteId}`
+- `SaveScaleResponse` / `GetScaleResponses` — `scaleResponses/{remoteId}`
+- `DeleteUserData` borra el documento y las subcolecciones `diary`, `emotions`, `minigameSessions`, `stars`, `notifications` y `scaleResponses`
 
 ### CloudSync (estático)
 Sincronización SQLite ↔ Firestore. **Ninguna feature sube nada a mano**:
@@ -152,8 +154,10 @@ Las subcolecciones nuevas necesitan permiso en las reglas. `DeleteUserData` borr
 Entrada borrada: el documento queda solo con `deleted (bool true), deletedAt (ISO 8601)`.
 AudioPath e ImagePath **no** se sincronizan (rutas locales del dispositivo).
 
-**Reglas de seguridad**: solo el usuario autenticado puede leer/escribir su propio documento y subcollecciones.
-**SDK instalado**: `FirebaseAuth.unitypackage`, `FirebaseAnalytics.unitypackage`, `FirebaseFirestore.unitypackage`.
+**Reglas de seguridad** (copia en `firestore.rules`): solo el usuario autenticado puede leer/escribir su propio documento y todas sus subcolecciones (`match /users/{userId}/{document=**}`), así que las subcolecciones nuevas no necesitan reglas nuevas.
+**SDK instalado**: `FirebaseAuth.unitypackage`, `FirebaseFirestore.unitypackage`. **Sin Analytics**: el paquete se quitó; en Android la librería nativa que arrastran Auth/Firestore está desactivada en `Assets/Plugins/Android/LutraPrivacy.androidlib` (`docs/BUGS.md`). Si se actualiza el SDK de Firebase, no reimportar `FirebaseAnalytics.unitypackage`.
+
+**Logs**: `GameManager._configureLogging` los desactiva en las builds de release (`Debug.isDebugBuild`).
 
 ### StreakManager
 `GetCurrentStreak`, `GetLongestStreak`, `RegisterCheckIn`, `HasCheckedInToday`.
@@ -165,7 +169,7 @@ AudioPath e ImagePath **no** se sincronizan (rutas locales del dispositivo).
 ### NotificationManager
 Recordatorio diario, streak warning, condicionado por `#if` de plataforma.
 Además `ScheduleWho5Reminder(fecha)`: aviso de que el WHO-5 vuelve a estar disponible, a la hora del recordatorio diario.
-Son notificaciones **push del sistema operativo**. La bandeja dentro de la app es otro sistema, `NotificationCenter` (planificado, `docs/NOTIFICATION_CENTER.md`).
+Son notificaciones **push del sistema operativo**. La bandeja dentro de la app es otro sistema, `NotificationCenter` (`docs/NOTIFICATION_CENTER.md`).
 
 ### NotificationCenter
 Bandeja de notificaciones dentro de la app (≠ `NotificationManager`). La crea `GameManager` por código (`AddComponent`) si no está en la escena.
@@ -275,8 +279,9 @@ Delega en `ChartsController.OpenCharts()`.
 |---|---|
 | `BottomNavBar` | 5 tabs; botón central especial (abre panel Día/Momento en MainMenu, vuelve a MainMenu desde otros estados) |
 | `SafeAreaHandler` | Adapta el `RectTransform` asignado al safe area del dispositivo (al cambiar dimensiones). En `Main.unity` está en el padre común de todas las pantallas: las pantallas nuevas no lo llevan |
-| `ToastNotification` | Singleton; `ShowError(string)`, `ShowSuccess(string)` |
-| `UILineChart` | `MaskableGraphic` que dibuja su malla: serie principal (puntos con color propio, línea cortada en huecos > `maxGap`), serie secundaria y líneas guía. `SetData(points, range, colors, secondary, grid, maxGap)` |
+| `ToastNotification` | Singleton; `ShowError(string)`, `ShowSuccess(string)`, `ShowInfo(string)` |
+| `UILineChart` | `MaskableGraphic` que dibuja su malla: líneas guía, línea principal (cortada en huecos > `maxGap`), serie secundaria encima (cortada en huecos > `secondaryMaxGap`) y por último los puntos (con color propio). `SetData(points, range, colors, secondary, grid, maxGap, secondaryMaxGap)`. Margen interior `_padding` (el eje Y de caritas de `MoodChart` usa el mismo valor) |
+| `HeatmapCell` | Celda del calendario y muestra de leyenda: color, marca X de "sin registro" y texto opcional; `Setup(color, noRecord, label)` |
 | `StatsBarRow` | Fila de barra horizontal (etiqueta, `Image` Filled, valor); `Setup(label, fraction, value, color)` |
 | `FileSharer` | `Share(paths, subject, text)`: menú nativo con NativeShare (`NATIVE_SHARE`); en el editor abre la carpeta |
 | `SupportDialog` | Singleton (GameObject siempre activo, hijo `_panel`); `ShowAlert()` (protocolo de apoyo) y `ShowResources()` (Ajustes, notificación de apoyo); botones 024 / 112 con `tel:` |

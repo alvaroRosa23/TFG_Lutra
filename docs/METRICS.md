@@ -25,7 +25,7 @@ Es la referencia para la pantalla de Estadísticas, el informe profesional (`doc
 
 4. **Mínimos de datos.** Ninguna métrica se muestra si no hay datos suficientes (umbral indicado en cada una). El informe siempre muestra la *n* en la que se basa cada cifra.
 
-5. **Datos que faltan no faltan al azar.** Los días sin registro suelen coincidir con peores momentos. El informe muestra la adherencia y los huecos junto a las medias, nunca medias aisladas.
+5. **No se puede suponer que los datos faltan al azar.** En los registros diarios, los días sin registro pueden coincidir con peores momentos (justo cuando cuesta más registrar), y entonces la media de los días registrados sobreestima el ánimo. Por eso el informe muestra la adherencia y los huecos junto a las medias, nunca medias aisladas, e incluye el ánimo del día previo a cada hueco (§4.9) como indicador exploratorio.
 
 6. **Usuario vs profesional.** El usuario ve progreso en lenguaje sencillo y en positivo; el profesional ve los valores técnicos y la metodología.
 
@@ -213,9 +213,9 @@ Es asociación, no causalidad: el informe lo indica.
 | `breaths_per_minute` | 60 / ciclo medio (inspiración + espiración de cada respiración aterrizada) | objetivo ≈ 6 |
 | `exhale_inhale_ratio` | Σ espiraciones / Σ inspiraciones | > 1 deseable |
 | `breath_cv` | desviación típica muestral / media del ciclo (0 si hay < 2 respiraciones) | menor = más regular |
+| % respiraciones perfectas | `perfect_breaths` / (`perfect` + `good` + `off_rhythm`) | — |
 
 **Diseño del juego:** el ritmo guía por defecto (`BreathJumpTuning`: 4 s de inspiración + 6 s de espiración) da ciclos de 10 s, es decir **6 respiraciones/min**, con una relación espiración/inspiración de **1,5**. Coincide con la respiración lenta que respalda la literatura citada. La espiración se mide desde que se suelta hasta la siguiente pulsación, así que el ciclo incluye el tiempo de salto.
-| % respiraciones perfectas | `perfect_breaths` / (`perfect` + `good` + `off_rhythm`) | — |
 
 En el informe: evolución sesión a sesión (¿aprende a respirar más despacio y regular?).
 

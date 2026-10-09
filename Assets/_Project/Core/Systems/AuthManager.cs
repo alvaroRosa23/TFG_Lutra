@@ -293,14 +293,22 @@ namespace Lutra.Core.Systems
                     AuthError.NetworkRequestFailed => "Sin conexión. Comprueba tu internet",
                     AuthError.TooManyRequests      => "Demasiados intentos. Espera un momento",
                     AuthError.UserDisabled         => "Esta cuenta ha sido desactivada",
-                    AuthError.InvalidCredential    => "Credenciales incorrectas",
+                    AuthError.InvalidCredential    => "Email o contraseña incorrectos",
                     AuthError.SessionExpired       => "Sesión expirada. Inicia sesión de nuevo",
-                    AuthError.Failure              => "Sesión expirada. Inicia sesión de nuevo",
+                    // Con la protección contra enumeración de emails, Firebase devuelve
+                    // INVALID_LOGIN_CREDENTIALS (sin distinguir email y contraseña) y el SDK lo trae como Failure
+                    AuthError.Failure when _isInvalidCredentials(fbEx.Message) => "Email o contraseña incorrectos",
+                    AuthError.Failure              => $"Error ({code}). Inténtalo de nuevo",
                     _                              => $"Error ({code}). Inténtalo de nuevo"
                 };
             }
 
             return $"Error de conexión: {ex.Message}";
         }
+
+        private static bool _isInvalidCredentials(string message)
+            => !string.IsNullOrEmpty(message)
+            && (message.Contains("INVALID_LOGIN_CREDENTIALS") || message.Contains("INVALID_PASSWORD")
+                || message.Contains("EMAIL_NOT_FOUND"));
     }
 }
