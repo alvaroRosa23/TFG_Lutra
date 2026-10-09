@@ -65,6 +65,9 @@ OnNotificationsChanged(bool needsAttention) EmitNotificationsChanged(value)  // 
 
 // Modal de emoción
 OnEmotionModalRequested()                   EmitEmotionModalRequested()      // BottomNavBar → MainMenuScreen abre panel Día/Momento
+
+// Tema visual
+OnThemeColorsChanged(Color, Color)          EmitThemeColorsChanged(p, bg)    // ThemeManager → ThemedGraphic (cada frame de la transición)
 ```
 
 `ClearAllListeners()` elimina todos los suscriptores. Llamar al reiniciar la app o en tests.
@@ -101,7 +104,7 @@ Sincronización SQLite ↔ Firestore. **Ninguna feature sube nada a mano**:
 - **Reconciliación** (`SyncAllAsync(repo)`, idempotente) al iniciar sesión (`LoginController`) y al abrir la app (`GameManager`):
   - Diario, emociones, partidas, estrellas, inventario: unión por id estable (`RemoteId` GUID / `starId` / `itemId`). Lo que falta en local se descarga y lo que falta en remoto se sube.
   - Monedas: manda Firestore (cada variación se sube como `Increment`). La primera vez (`syncVersion` < 2) manda el saldo local.
-  - Colocaciones y preferencias: mandan las remotas; las locales que no están en remoto se suben.
+  - Colocaciones y preferencias: mandan las remotas; las locales que no están en remoto se suben. Los ajustes de la app van en la preferencia `appSettings` (`SettingsManager`).
   - Ítems vendidos en otro dispositivo (`inventoryRemoved`) se quitan también en local.
   - Cuestionarios (WHO-5): unión por `RemoteId` (no se editan).
   - Notificaciones: unión por `RemoteId`; si existe en ambos lados, leída y resuelta ganan. Al terminar actualiza la "!" (`NotificationCenter.RefreshAttention`).
@@ -188,7 +191,11 @@ Protocolo de apoyo (`docs/PROFESSIONAL_REPORT.md` §6.3). `SupportRules`: reglas
 Escucha EventBus, programa aviso si racha ≥ 3 sin check-in.
 
 ### SettingsManager
-Preferencias de usuario: notificaciones, apariencia, exportación y borrado de datos.
+Preferencias de usuario: notificaciones, apariencia, audio, daltonismo, idioma, exportación y borrado de datos.
+- **Ajustes por usuario, sincronizados**: cada cambio se guarda en `PlayerPrefs` (copia del dispositivo) y en `UserProfile.Preferences["appSettings"]` (JSON de `AppSettings`), que viaja a Firestore con el perfil. Al iniciar sesión, `CloudSync` trae las preferencias remotas y `SettingsManager` aplica esos ajustes (filtro de daltonismo, recordatorio diario…) en cualquier dispositivo.
+- **Pantallas sin usuario** (Splash, Login, Registro, Onboarding; detectadas con `EventBus.OnScreenChanged`): ajustes por defecto, sin filtro de daltonismo, y se borra la copia del dispositivo (era del usuario que cerró sesión; si no, otra cuenta nueva la heredaría).
+- Al pasar a una pantalla con usuario: `_safeLoadUserSettings` carga los del perfil; si el perfil aún no los tiene (usuarios anteriores a esta sincronización), usa los del dispositivo y los sube.
+- Limitación: si se cambian en otro dispositivo con la app ya abierta aquí, se aplican en el siguiente inicio de sesión o apertura.
 - `ExportUserData()` → `Task<string>`: serializa todos los datos del usuario (perfil, registros, diario, partidas, cuestionarios, notificaciones) a `temporaryCachePath/lutra_datos.json` y devuelve la ruta; `SettingsController` la comparte con `FileSharer` (portabilidad, RGPD art. 20).
 
 ---
@@ -217,32 +224,39 @@ Emociones, diario, minijuegos, perfil, rachas, monedas, ítems desbloqueados.
 ## UI/Theme
 
 ### ColorblindFeature
-`ScriptableRendererFeature` en `Assets/_Project/UI/Theme/ColorblindFeature.cs`.
-- Shader: `Assets/Shaders/Colorblind.shader` (URP, usa `Blit.hlsl`)
-- Propiedad estática `CurrentMode` (escribe `SettingsManager` en `Awake` y en `UpdateColorblindMode`)
-- Aplica una matriz 3×3 de corrección de color via producto escalar en el fragment shader
-- Usa un RT temporal para evitar leer y escribir en el mismo render target
-- `renderPassEvent = AfterRenderingPostProcessing`
-- **Requiere** estar añadido manualmente al `Renderer2D.asset` en el Inspector de Unity:
-  Project → Settings/Renderer2D → Add Renderer Feature → Colorblind Feature → asignar shader `Lutra/Colorblind`
+`ScriptableRendererFeature` en `Assets/_Project/UI/Theme/ColorblindFeature.cs` (RenderGraph, Unity 6).
+- Shader: `Assets/Shaders/Colorblind.shader` (`Lutra/Colorblind`), ya asignado en `Settings/Renderer2D.asset`
+- Propiedad estática `CurrentMode` (escribe `SettingsManager` en `Awake` y en `UpdateColorblindMode`); con `None` no se encola el pase
+- Usa un RT temporal para no leer y escribir en el mismo render target; `renderPassEvent = AfterRenderingPostProcessing`
+- ⚠ **Solo afecta a lo que dibuja la cámara.** Un Canvas en *Screen Space - Overlay* se dibuja después de URP y el filtro no le llega (por eso el modo de daltonismo no se veía). `CanvasCameraBinder` pasa todos los Canvas a *Screen Space - Camera* en ejecución, así que en el editor siguen apareciendo como Overlay.
 
-Modos y matrices de corrección (daltonización):
-| Modo | RowR | RowG | RowB |
-|---|---|---|---|
-| Deuteranopia | (0.625, 0.375, 0) | (0.700, 0.300, 0) | (0, 0.300, 0.700) |
-| Protanopia   | (0.567, 0.433, 0) | (0.558, 0.442, 0) | (0, 0.242, 0.758) |
-| Tritanopia   | (0.950, 0.050, 0) | (0, 0.433, 0.567) | (0, 0.475, 0.525) |
+**Daltonización (corrección), no simulación.** Para cada píxel en RGB lineal (el proyecto usa espacio de color Linear):
+1. `sim = Sim · color` — cómo lo percibe la persona (matrices de Machado, Oliveira y Fernandes, 2009, severidad 1.0).
+2. `err = color − sim` — la información de color que no percibe.
+3. `salida = color + Shift · err` — esa información se lleva a los canales que sí distingue (método de Fidaner, Lin y Ozguven, 2005).
+
+| Modo | Simulación (Machado et al., 2009) | Redistribución del error |
+|---|---|---|
+| Protanopia | filas (0.152, 1.053, −0.205) · (0.115, 0.786, 0.099) · (−0.004, −0.048, 1.052) | rojo → verde y azul: R (0,0,0) · G (0.7,1,0) · B (0.7,0,1) |
+| Deuteranopia | (0.367, 0.861, −0.228) · (0.280, 0.673, 0.047) · (−0.012, 0.043, 0.969) | igual que protanopia |
+| Tritanopia | (1.256, −0.077, −0.179) · (−0.078, 0.931, 0.148) · (0.005, 0.691, 0.304) | azul → rojo y verde: R (1,0,0.7) · G (0,1,0.7) · B (0,0,0) |
+
+Antes (hasta 2026-10-09) el shader aplicaba directamente matrices de **simulación** (0.625, 0.375…): mostraban a cualquiera cómo ve una persona daltónica, pero a esa persona le quitaban aún más contraste.
+
+Referencias (verificar antes de la memoria):
+- Machado, G. M., Oliveira, M. M., & Fernandes, L. A. F. (2009). A physiologically-based model for simulation of color vision deficiency. *IEEE Transactions on Visualization and Computer Graphics, 15*(6), 1291–1298.
+- Fidaner, O., Lin, P., & Ozguven, N. (2005). *Analysis of color blindness*. Stanford University (proyecto de curso; base del algoritmo de daltonización de daltonize.org).
 
 ### ThemeManager
 `ApplyTheme(emotion, animate=true)`, `GetTheme(EmotionType)`, `GetCurrentTheme()`, `SetActiveCulture(CultureType)`.
-- Crossfade de color de cámara y `_backgroundImage` durante `transitionDuration` segundos (SmoothStep)
-- Crossfade de audio entre `_audioSourceA` y `_audioSourceB`
+- **Colores**: resuelve primario y fondo (tema + paleta cultural) y los interpola durante `transitionDuration` segundos (SmoothStep). En cada frame actualiza `CurrentPrimary` / `CurrentBackground` / `HasAppliedColors`, tiñe el fondo de la cámara y emite `EventBus.OnThemeColorsChanged(primary, background)`. **No tiñe ninguna imagen concreta**: los fondos que cambian de color llevan un `ThemedGraphic` (ver UI/Components)
+- Crossfade de audio entre `_audioSourceA` y `_audioSourceB`. Si el segundo falta o es el mismo que el primero, `Awake` crea otro `AudioSource` (antes eran el mismo y el audio se cortaba al terminar cada transición)
 - Instancia y destruye `ambientParticlesPrefab` en `transform`
 - Cambia sprite de `_mascotImage` al final de la transición
 - Eventos: `OnThemeTransition(EmotionTheme, float progress)`, `OnThemeApplied(EmotionTheme)`
 - Emite `EventBus.EmitCurrentEmotionChanged` al completar la transición
 
-**Paletas culturales**: Inspector tiene array `_cultureOverrides` (`CultureColorOverride[]`). `SetActiveCulture` selecciona el override activo. `ApplyTheme` llama a `_resolveColors` antes de animar: si hay override con entrada para esa emoción usa sus colores, si no usa los del `EmotionTheme` base. Solo se sobreescriben `primaryColor` y `backgroundColor`; sprite, audio, partículas y duración vienen siempre del `EmotionTheme`.
+**Paletas culturales**: Inspector tiene array `_cultureOverrides` (`CultureColorOverride[]`). `SetActiveCulture` selecciona el override activo. `ApplyTheme` llama a `_resolveColors` antes de animar: si hay override con entrada para esa emoción usa sus colores, si no usa los del `EmotionTheme` base. Solo se sobreescriben `primaryColor` y `backgroundColor`; sprite, audio, partículas y duración vienen siempre del `EmotionTheme`. Las 5 paletas (`Core/Data/ScriptableObjects/Culture Overrides/`) tienen los 8 colores. La cultura se elige en el onboarding y no se puede cambiar en Ajustes.
 
 `SetActiveCulture` debe llamarse en los tres puntos de entrada con sesión activa:
 1. `GameManager.StartApp`
@@ -281,6 +295,8 @@ Delega en `ChartsController.OpenCharts()`.
 | `SafeAreaHandler` | Adapta el `RectTransform` asignado al safe area del dispositivo (al cambiar dimensiones). En `Main.unity` está en el padre común de todas las pantallas: las pantallas nuevas no lo llevan |
 | `ToastNotification` | Singleton; `ShowError(string)`, `ShowSuccess(string)`, `ShowInfo(string)` |
 | `UILineChart` | `MaskableGraphic` que dibuja su malla: líneas guía, línea principal (cortada en huecos > `maxGap`), serie secundaria encima (cortada en huecos > `secondaryMaxGap`) y por último los puntos (con color propio). `SetData(points, range, colors, secondary, grid, maxGap, secondaryMaxGap)`. Margen interior `_padding` (el eje Y de caritas de `MoodChart` usa el mismo valor) |
+| `CanvasCameraBinder` | Estático. `BindScene(scene, mainCamera)` (Main.unity) y `BindSceneAbove(scene, mainCamera, belowScene)` (minijuegos): pasa los Canvas raíz a *Screen Space - Camera* (plano a 1 unidad) **siempre con la cámara de `Main`** y añade su capa a la *Culling Mask* (en Overlay daba igual). Los Canvas de un minijuego suben por encima del Canvas más alto de `Main` conservando su orden relativo. Una cámara propia de minijuego (BreathJump) no se usa para la UI: pinta el mundo en una RenderTexture que muestra una `RawImage` de su Canvas. Escribe un log por Canvas. Lo llaman `GameManager.Start` (en `Awake` la escena aún no cuenta como cargada) y `MinigameLoader.LoadMinigame` |
+| `ThemedGraphic` (`UI/Theme/`) | Tiñe su `Graphic` con el color del tema (incluida la paleta cultural) siguiendo la transición. `_slot` (Primary / Background), `_strength` (0 = blanco … 1 = color completo), `_alpha`. Dos usos: **capa teñible** del arte de fondo (diseño entrega esa capa en blanco o tonos claros; strength 1, alpha 1) o **velo** (Image lisa sobre el arte, debajo del contenido, sin Raycast Target; alpha 0,15-0,3). Al activarse aplica el color actual (`ThemeManager.CurrentPrimary`) |
 | `HeatmapCell` | Celda del calendario y muestra de leyenda: color, marca X de "sin registro" y texto opcional; `Setup(color, noRecord, label)` |
 | `StatsBarRow` | Fila de barra horizontal (etiqueta, `Image` Filled, valor); `Setup(label, fraction, value, color)` |
 | `FileSharer` | `Share(paths, subject, text)`: menú nativo con NativeShare (`NATIVE_SHARE`); en el editor abre la carpeta |

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -13,7 +14,14 @@ namespace Lutra.Core.Systems
 {
     /// <summary>
     /// Punto de acceso centralizado para leer y escribir la configuración de la app.
-    /// Persiste en PlayerPrefs vía AppSettings y aplica los cambios en tiempo real.
+    /// Aplica los cambios en tiempo real y los guarda en dos sitios:
+    ///   - UserProfile.Preferences["appSettings"]: la copia del usuario. Viaja con el perfil a
+    ///     Firestore (CloudSync), así que al iniciar sesión en cualquier dispositivo se recupera.
+    ///   - PlayerPrefs: la copia del dispositivo para el usuario con la sesión abierta.
+    ///
+    /// Sin usuario (Splash, Login, Registro y Onboarding) se usan los ajustes por defecto, sin filtro
+    /// de daltonismo, y se borra la copia del dispositivo (era del usuario que cerró sesión). Al entrar
+    /// en la app con sesión se cargan los ajustes del perfil (tras CloudSync en el login).
     /// </summary>
     public class SettingsManager : BaseService
     {
@@ -33,6 +41,12 @@ namespace Lutra.Core.Systems
         /// <summary>Acceso de solo lectura a la configuración actual.</summary>
         public AppSettings Current => _currentSettings;
 
+        /// <summary>Clave de UserProfile.Preferences con los ajustes del usuario (JSON de AppSettings).</summary>
+        public const string ProfilePreferenceKey = "appSettings";
+
+        /// <summary>null hasta la primera pantalla; true en pantallas sin usuario (login, onboarding…).</summary>
+        private bool? _guestMode;
+
         // ── Unity lifecycle ────────────────────────────────────────────
 
         private void Awake()
@@ -40,6 +54,9 @@ namespace Lutra.Core.Systems
             _currentSettings = AppSettings.LoadFromPlayerPrefs();
             _applySettings();
         }
+
+        private void OnEnable()  => EventBus.OnScreenChanged += _onScreenChanged;
+        private void OnDisable() => EventBus.OnScreenChanged -= _onScreenChanged;
 
         // ── API pública ────────────────────────────────────────────────
 
@@ -58,7 +75,7 @@ namespace Lutra.Core.Systems
             else
                 NotificationManagerService.CancelDailyReminder();
 
-            _currentSettings.SaveToPlayerPrefs();
+            _persist();
             EventBus.EmitSettingsChanged(_currentSettings);
         }
 
@@ -72,7 +89,7 @@ namespace Lutra.Core.Systems
             _currentSettings.FontSize          = fontSize;
             _currentSettings.HighContrast      = highContrast;
 
-            _currentSettings.SaveToPlayerPrefs();
+            _persist();
             _applySettings();
         }
 
@@ -80,7 +97,7 @@ namespace Lutra.Core.Systems
         public void UpdateHaptics(bool enabled)
         {
             _currentSettings.HapticsEnabled = enabled;
-            _currentSettings.SaveToPlayerPrefs();
+            _persist();
             EventBus.EmitSettingsChanged(_currentSettings);
         }
 
@@ -145,7 +162,7 @@ namespace Lutra.Core.Systems
         {
             _currentSettings.MusicVolume = Mathf.Clamp01(musicVolume);
             _currentSettings.SfxVolume   = Mathf.Clamp01(sfxVolume);
-            _currentSettings.SaveToPlayerPrefs();
+            _persist();
             EventBus.EmitSettingsChanged(_currentSettings);
         }
 
@@ -153,7 +170,7 @@ namespace Lutra.Core.Systems
         public void UpdateColorblindMode(ColorblindMode mode)
         {
             _currentSettings.Colorblind = mode;
-            _currentSettings.SaveToPlayerPrefs();
+            _persist();
             ColorblindFeature.CurrentMode = mode;
             EventBus.EmitSettingsChanged(_currentSettings);
         }
@@ -163,7 +180,7 @@ namespace Lutra.Core.Systems
         {
             if (string.IsNullOrWhiteSpace(languageCode)) return;
             _currentSettings.Language = languageCode;
-            _currentSettings.SaveToPlayerPrefs();
+            _persist();
             EventBus.EmitSettingsChanged(_currentSettings);
         }
 
@@ -221,6 +238,101 @@ namespace Lutra.Core.Systems
                 Debug.LogError($"[SettingsManager] DeleteAccount: {ex.Message}");
                 throw;
             }
+        }
+
+        // ── Ajustes por usuario ────────────────────────────────────────
+
+        /// <summary>Pantallas sin usuario identificado: se ven sin ajustes personales.</summary>
+        private static bool _isGuestState(AppState state)
+            => state == AppState.Splash || state == AppState.Login
+            || state == AppState.Register || state == AppState.OnboardingProfile;
+
+        /// <summary>Solo actúa al pasar de pantallas sin usuario a pantallas con usuario o al revés.</summary>
+        private void _onScreenChanged(AppState state)
+        {
+            bool guest = _isGuestState(state);
+            if (_guestMode == guest) return;
+            _guestMode = guest;
+
+            if (guest) _enterGuestMode();
+            else       _ = _safeLoadUserSettings();
+        }
+
+        /// <summary>
+        /// Ajustes por defecto (sin filtro de daltonismo) y fuera la copia del dispositivo: era del
+        /// usuario que cerró sesión, y si no otra cuenta nueva la heredaría. Los del usuario siguen en su perfil.
+        /// </summary>
+        private void _enterGuestMode()
+        {
+            _currentSettings = new AppSettings();
+            AppSettings.DeleteAll();
+            _applySettings();
+        }
+
+        /// <summary>
+        /// Carga los ajustes del perfil del usuario (en el login ya vienen de Firestore por CloudSync).
+        /// Usuarios anteriores a la sincronización de ajustes: se usan los del dispositivo y se suben.
+        /// </summary>
+        private async Task _safeLoadUserSettings()
+        {
+            try
+            {
+                var profile = await Repository.GetUserProfile();
+                if (profile == null) return;
+
+                string json = null;
+                profile.Preferences?.TryGetValue(ProfilePreferenceKey, out json);
+                var fromProfile = AppSettings.FromJson(json);
+
+                _currentSettings = fromProfile ?? AppSettings.LoadFromPlayerPrefs();
+                _currentSettings.SaveToPlayerPrefs();
+                _applySettings();
+                _applyReminder();
+
+                if (fromProfile == null)
+                    await _saveToProfile();
+
+                Debug.Log($"[SettingsManager] Ajustes del usuario cargados ({(fromProfile != null ? "perfil" : "dispositivo")}).");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SettingsManager] _safeLoadUserSettings: {ex.Message}");
+            }
+        }
+
+        /// <summary>Guarda en el dispositivo y en el perfil del usuario (que se sube a Firestore).</summary>
+        private void _persist()
+        {
+            _currentSettings.SaveToPlayerPrefs();
+            if (_guestMode == true) return;   // sin usuario no hay perfil donde guardar
+            _ = _safeSaveToProfile();
+        }
+
+        private async Task _safeSaveToProfile()
+        {
+            try   { await _saveToProfile(); }
+            catch (Exception ex) { Debug.LogError($"[SettingsManager] _safeSaveToProfile: {ex.Message}"); }
+        }
+
+        private async Task _saveToProfile()
+        {
+            var profile = await Repository.GetUserProfile();
+            if (profile == null) return;
+
+            var preferences = profile.Preferences ?? new Dictionary<string, string>();
+            preferences[ProfilePreferenceKey] = _currentSettings.ToJson();
+            profile.Preferences = preferences;
+
+            await Repository.SaveUserProfile(profile);   // DataRepository lo sube a Firestore
+        }
+
+        /// <summary>El recordatorio diario sigue los ajustes del usuario que entra.</summary>
+        private void _applyReminder()
+        {
+            if (_currentSettings.NotificationsEnabled)
+                NotificationManagerService.ScheduleDailyReminder(_currentSettings.ReminderHour, _currentSettings.ReminderMinute);
+            else
+                NotificationManagerService.CancelDailyReminder();
         }
 
         // ── Métodos privados ───────────────────────────────────────────

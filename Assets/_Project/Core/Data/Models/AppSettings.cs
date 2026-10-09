@@ -1,10 +1,14 @@
+using System;
 using UnityEngine;
+using Newtonsoft.Json;
 
 namespace Lutra.Core.Data.Models
 {
     /// <summary>
     /// Modelo de configuración de la aplicación. No es MonoBehaviour.
-    /// Se persiste en PlayerPrefs y se gestiona a través de SettingsManager.
+    /// Se gestiona a través de SettingsManager. La copia de cada usuario va en
+    /// UserProfile.Preferences["appSettings"] (JSON, se sincroniza con Firestore); PlayerPrefs es la
+    /// copia del dispositivo para el usuario con la sesión abierta.
     /// </summary>
     public class AppSettings
     {
@@ -58,6 +62,24 @@ namespace Lutra.Core.Data.Models
         private const string K_MUSIC_VOLUME     = "settings_music_volume";
         private const string K_SFX_VOLUME       = "settings_sfx_volume";
         private const string K_COLORBLIND       = "settings_colorblind";
+
+        // ── JSON (copia del usuario en el perfil) ──────────────────────
+
+        /// <summary>Todos los ajustes en JSON (propiedades públicas) para guardarlos en el perfil.</summary>
+        public string ToJson() => JsonConvert.SerializeObject(this);
+
+        /// <summary>Ajustes desde el JSON del perfil; null si está vacío o no se puede leer.
+        /// Los campos que falten (ajustes nuevos) toman su valor por defecto.</summary>
+        public static AppSettings FromJson(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try   { return JsonConvert.DeserializeObject<AppSettings>(json); }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AppSettings] JSON de ajustes no válido: {ex.Message}");
+                return null;
+            }
+        }
 
         // ── Persistencia ───────────────────────────────────────────────
 

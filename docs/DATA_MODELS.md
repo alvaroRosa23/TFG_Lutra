@@ -110,7 +110,7 @@ Envío completo de una escala validada (WHO-5). Enum `ScaleType { Who5 = 0 }`. C
 
 - **`EmotionCircumplex`**: `ValenceOf()` (`Valence`: Unpleasant / Mixed / Pleasant), `ArousalOf()` (`Arousal`: Low / High), `QuadrantOf()` (`AffectQuadrant`: Tension, LowMood, Calm, Enthusiasm, Mixed). Derivación teórica (`docs/METRICS.md` §3.1).
 - **`MotiveTags`**: `Fixed` (motivos fijos del check-in), `Parse(json)`, `GroupKey(tag)` (hobby o fijo → él mismo; texto libre → "Otros"), `DisplayName(key)`.
-- **`UserProfile.Preferences`** — claves en uso: `consentVersion`, `consentDate`, `diaryLanguageAnalysis` (`ConsentGate`), `lastDiaryRewardDate` (`DiaryController`), `featherColorIndex`, `mascotAccessoryId` (`MascotCustomizer`).
+- **`UserProfile.Preferences`** — claves en uso: `consentVersion`, `consentDate`, `diaryLanguageAnalysis` (`ConsentGate`), `lastDiaryRewardDate` (`DiaryController`), `featherColorIndex`, `mascotAccessoryId` (`MascotCustomizer`), `appSettings` (JSON de `AppSettings`: todos los ajustes del usuario, `SettingsManager`).
 
 ---
 
@@ -130,7 +130,7 @@ int?                        CoinReward          // monedas calculadas por el jue
 ```
 
 ### AppSettings / UserAccount
-Solo en memoria, no persisten en SQLite.
+Sin tabla propia en SQLite. `AppSettings` (todos los ajustes de la app) se guarda en `PlayerPrefs` (copia del dispositivo) y como JSON en `UserProfile.Preferences["appSettings"]` (`ToJson` / `FromJson`; los campos que falten toman su valor por defecto), que se sincroniza con Firestore. `UserAccount` solo existe en memoria.
 
 ---
 

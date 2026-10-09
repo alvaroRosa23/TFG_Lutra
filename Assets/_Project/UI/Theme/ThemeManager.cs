@@ -10,11 +10,15 @@ using Lutra.Core.Events;
 namespace Lutra.UI.Theme
 {
     /// <summary>
-    /// Aplica el EmotionTheme activo a la cámara, audio ambiental y partículas.
-    /// Se registra como servicio para que cualquier sistema pueda consultarlo.
+    /// Aplica el EmotionTheme activo: colores (con la paleta cultural), audio ambiental, partículas
+    /// y expresión de la mascota. Se registra como servicio para que cualquier sistema pueda consultarlo.
+    ///
+    /// Los colores no se aplican a una imagen concreta: se publican con EventBus.OnThemeColorsChanged
+    /// (cada frame de la transición) y en CurrentPrimary / CurrentBackground. Los fondos que deben
+    /// cambiar de color llevan un ThemedGraphic, que se configura pantalla a pantalla.
     ///
     /// Setup: asignar los 8 EmotionTheme assets en el array _themes desde el Inspector.
-    /// Requiere dos AudioSource hijos (para crossfade) nombrados AmbientA y AmbientB.
+    /// Audio: dos AudioSource para el crossfade; si falta el segundo (o es el mismo) se crea en Awake.
     /// </summary>
     public class ThemeManager : BaseService
     {
@@ -28,7 +32,6 @@ namespace Lutra.UI.Theme
 
         [Header("UI References")]
         [SerializeField] private Image _mascotImage;
-        [SerializeField] private Image _backgroundImage;
 
         [Header("Audio (crossfade)")]
         [SerializeField] private AudioSource _audioSourceA;
@@ -43,6 +46,17 @@ namespace Lutra.UI.Theme
         private Camera               _mainCamera;
         private CultureColorOverride _activeCultureOverride;
 
+        // ── Colores efectivos ──────────────────────────────────────────
+
+        /// <summary>Color primario efectivo (tema + paleta cultural), también durante la transición.</summary>
+        public Color CurrentPrimary    { get; private set; } = Color.white;
+
+        /// <summary>Color de fondo efectivo (tema + paleta cultural), también durante la transición.</summary>
+        public Color CurrentBackground { get; private set; } = Color.white;
+
+        /// <summary>false hasta el primer ApplyTheme: los ThemedGraphic mantienen su color del editor.</summary>
+        public bool HasAppliedColors   { get; private set; }
+
         // ── Eventos públicos ───────────────────────────────────────────
 
         /// <summary>Disparado cada frame durante la transición. Parámetros: tema destino, progreso 0→1.</summary>
@@ -56,6 +70,7 @@ namespace Lutra.UI.Theme
         private void Awake()
         {
             _mainCamera = Camera.main;
+            _ensureTwoAudioSources();
         }
 
         protected override void OnDestroy()
@@ -80,7 +95,6 @@ namespace Lutra.UI.Theme
             Debug.Log($"[ThemeManager] ApplyTheme({emotion}). " +
                       $"Theme found: {theme != null}, " +
                       $"Themes count: {_themes?.Length ?? 0}, " +
-                      $"BackgroundImage: {_backgroundImage != null}, " +
                       $"Camera: {_mainCamera != null}");
 
             if (theme == null)
@@ -166,11 +180,7 @@ namespace Lutra.UI.Theme
         /// </summary>
         private void _applyInstant(EmotionTheme theme, Color primary, Color background)
         {
-            if (_mainCamera != null)
-                _mainCamera.backgroundColor = background;
-
-            if (_backgroundImage != null)
-                _backgroundImage.color = primary;
+            _setColors(primary, background);
 
             if (theme.mascotExpression != null && _mascotImage != null)
                 _mascotImage.sprite = theme.mascotExpression;
@@ -190,10 +200,8 @@ namespace Lutra.UI.Theme
         /// </summary>
         private IEnumerator _transitionToTheme(EmotionTheme theme, Color primary, Color background)
         {
-            var fromColor = _mainCamera != null ? _mainCamera.backgroundColor : background;
-            var toColor   = background;
-            var fromBg    = _backgroundImage != null ? _backgroundImage.color : primary;
-            var toBg      = primary;
+            var fromPrimary    = HasAppliedColors ? CurrentPrimary    : primary;
+            var fromBackground = HasAppliedColors ? CurrentBackground : background;
             float elapsed  = 0f;
             float duration = theme.transitionDuration;
 
@@ -209,22 +217,15 @@ namespace Lutra.UI.Theme
                 float t        = Mathf.Clamp01(elapsed / duration);
                 float smoothT  = Mathf.SmoothStep(0f, 1f, t);
 
-                if (_mainCamera != null)
-                    _mainCamera.backgroundColor = Color.Lerp(fromColor, toColor, smoothT);
-
-                if (_backgroundImage != null)
-                    _backgroundImage.color = Color.Lerp(fromBg, toBg, smoothT);
+                _setColors(Color.Lerp(fromPrimary, primary, smoothT),
+                           Color.Lerp(fromBackground, background, smoothT));
 
                 OnThemeTransition?.Invoke(theme, smoothT);
                 yield return null;
             }
 
             // Garantizar valor final exacto
-            if (_mainCamera != null)
-                _mainCamera.backgroundColor = toColor;
-
-            if (_backgroundImage != null)
-                _backgroundImage.color = toBg;
+            _setColors(primary, background);
 
             if (theme.mascotExpression != null && _mascotImage != null)
                 _mascotImage.sprite = theme.mascotExpression;
@@ -233,6 +234,37 @@ namespace Lutra.UI.Theme
             _transitionCoroutine = null;
 
             OnThemeApplied?.Invoke(theme);
+        }
+
+        /// <summary>Guarda los colores efectivos, tiñe el fondo de la cámara y avisa a los ThemedGraphic.</summary>
+        private void _setColors(Color primary, Color background)
+        {
+            CurrentPrimary    = primary;
+            CurrentBackground = background;
+            HasAppliedColors  = true;
+
+            if (_mainCamera != null)
+                _mainCamera.backgroundColor = background;
+
+            EventBus.EmitThemeColorsChanged(primary, background);
+        }
+
+        /// <summary>
+        /// El crossfade necesita dos AudioSource distintos: con uno solo, el que entra y el que sale
+        /// son el mismo y al terminar el fundido se para (el audio ambiental se cortaba).
+        /// Si falta el segundo o es el mismo que el primero, se crea uno con la misma configuración.
+        /// </summary>
+        private void _ensureTwoAudioSources()
+        {
+            if (_audioSourceA == null) _audioSourceA = gameObject.AddComponent<AudioSource>();
+            if (_audioSourceB != null && _audioSourceB != _audioSourceA) return;
+
+            _audioSourceB = gameObject.AddComponent<AudioSource>();
+            _audioSourceB.outputAudioMixerGroup = _audioSourceA.outputAudioMixerGroup;
+            _audioSourceB.playOnAwake           = false;
+            _audioSourceB.loop                  = true;
+            _audioSourceB.spatialBlend          = _audioSourceA.spatialBlend;
+            _audioSourceB.priority              = _audioSourceA.priority;
         }
 
         /// <summary>Crossfade entre los dos AudioSources en el tiempo de transición indicado.</summary>

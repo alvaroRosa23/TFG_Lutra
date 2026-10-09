@@ -47,13 +47,13 @@ Guía para Claude Code en este repositorio.
 | `AuthManager` | Firebase Authentication: registro, login, logout, recuperación |
 | `FirestoreManager` | Persistencia remota; SQLite es la fuente local |
 | `CloudSync` | Sincronización SQLite ↔ Firestore: subidas automáticas desde `DataRepository` y `SyncAllAsync` al iniciar sesión/abrir la app |
-| `ThemeManager` | `ApplyTheme(emotion, animate=true)`; `SetActiveCulture(CultureType)` |
+| `ThemeManager` | `ApplyTheme(emotion, animate=true)`; `SetActiveCulture(CultureType)`; publica los colores con `EventBus.OnThemeColorsChanged` — los fondos que cambian de color llevan `ThemedGraphic` |
 | `MascotController` | Búho animado con `Animator`; hashes pre-cacheados en `Awake()` |
 | `MinigameLoader` | Carga y descarga minijuegos con Additive Scene Loading |
 | `StreakManager` | `RegisterCheckIn`, `GetCurrentStreak`, `HasCheckedInToday`; hitos 7/14/30 días |
 | `RewardSystem` | Evalúa y otorga recompensas tras cada check-in emocional |
-| `SettingsManager` | Preferencias de usuario; escribe `ColorblindFeature.CurrentMode` en Awake y al cambiar ajustes |
-| `ColorblindFeature` | URP ScriptableRendererFeature; propiedad estática `CurrentMode`; shader `Assets/Shaders/Colorblind.shader` |
+| `SettingsManager` | Preferencias de usuario; escribe `ColorblindFeature.CurrentMode`. Los ajustes de cada usuario van en `UserProfile.Preferences["appSettings"]` (se sincronizan con Firestore); en Login/Registro/Onboarding se usan los por defecto, sin filtro |
+| `ColorblindFeature` | URP ScriptableRendererFeature (daltonización: Machado 2009 + redistribución del error); propiedad estática `CurrentMode`; shader `Assets/Shaders/Colorblind.shader`. **Solo llega a Canvas en Screen Space - Camera** |
 | `NotificationManager` | Push del sistema operativo: recordatorio diario y aviso de racha en peligro |
 | `NotificationCenter` | Bandeja dentro de la app: recompensas, resumen semanal, avisos anclados (WHO-5). La crea `GameManager` por código |
 | `ConsentGate` | Consentimiento de datos de salud; `ContinueTo(destino)` tras arranque/login/onboarding |
@@ -200,6 +200,11 @@ private void _populateContainer(Transform container, List<T> items)
     }
 }
 ```
+
+### Canvas y fondos de pantalla
+
+- Los Canvas se pasan solos a **Screen Space - Camera** en ejecución (`CanvasCameraBinder`: `GameManager` para `Main.unity`, `MinigameLoader` para cada minijuego; los minijuegos sin cámara usan la de `Main`). En *Overlay* la UI no pasa por URP y el filtro de daltonismo (`ColorblindFeature`) no le llega. Un minijuego nuevo no necesita configurar nada. Si necesita cámara propia para su mundo, que la pinte en una RenderTexture mostrada en su Canvas (como BreathJump): la UI siempre usa la cámara de `Main`.
+- Los fondos que deben cambiar con la emoción y la cultura llevan `ThemedGraphic` (capa teñible del arte o velo de color). Nunca asignar colores de tema a mano desde una pantalla.
 
 ### Patrón para Instantiate en UI
 

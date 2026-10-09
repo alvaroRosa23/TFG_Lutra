@@ -7,6 +7,7 @@ using Lutra.Core.Data.Models;
 using Lutra.Core.Data.Persistence;
 using Lutra.Core.Data.ScriptableObjects;
 using Lutra.Core.Events;
+using Lutra.UI.Components;
 using Lutra.UI.Screens;
 
 namespace Lutra.Minigames
@@ -56,8 +57,18 @@ namespace Lutra.Minigames
             _emotionBefore    = emotion;
             _currentSceneName = sceneData.sceneName;
 
+            // Cámara de Main.unity antes de cargar: con la escena del minijuego puede haber dos "MainCamera"
+            var mainCamera = Camera.main;
+
             // Cargar escena de forma aditiva
             await _loadSceneAsync(_currentSceneName);
+
+            // Sus Canvas a Screen Space - Camera (filtro de daltonismo), por encima de la UI de Main.unity
+            if (mainCamera != null)
+                CanvasCameraBinder.BindSceneAbove(SceneManager.GetSceneByName(_currentSceneName), mainCamera,
+                                                  belowScene: mainCamera.gameObject.scene);
+            else
+                Debug.LogWarning("[MinigameLoader] Sin Camera.main: los Canvas del minijuego se quedan en Overlay.");
 
             // Buscar componente IMinigame en la escena recién cargada
             _currentMinigame = _findMinigameInScene(_currentSceneName);

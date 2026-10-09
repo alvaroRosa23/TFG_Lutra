@@ -35,8 +35,7 @@ namespace Lutra.UI.Screens
 
         // ── Referencias serializadas ───────────────────────────────────
 
-        [Header("Fondo y mascota")]
-        [SerializeField] private Image            _backgroundImage;
+        [Header("Mascota")]
         [SerializeField] private Image            _mascotImage;
 
         [Header("Saludo")]

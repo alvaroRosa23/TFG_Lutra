@@ -81,6 +81,14 @@ namespace Lutra.Core.Events
         /// </summary>
         public static event Action<bool> OnNavBarVisibilityRequested;
 
+        // ── Tema visual ────────────────────────────────────────────────
+
+        /// <summary>
+        /// Colores efectivos del tema (emoción + paleta cultural): primario y de fondo. ThemeManager lo
+        /// emite en cada frame de la transición y al aplicar un tema; lo escuchan los ThemedGraphic.
+        /// </summary>
+        public static event Action<Color, Color> OnThemeColorsChanged;
+
         // ── Métodos de emisión ─────────────────────────────────────────
 
         public static void EmitEmotionRegistered(EmotionRecord record)     => _safeInvoke(OnEmotionRegistered, record, nameof(OnEmotionRegistered));
@@ -100,6 +108,7 @@ namespace Lutra.Core.Events
         public static void EmitNotificationsChanged(bool needsAttention)    => _safeInvoke(OnNotificationsChanged, needsAttention, nameof(OnNotificationsChanged));
         public static void EmitEmotionModalRequested()                       => _safeInvoke(OnEmotionModalRequested, nameof(OnEmotionModalRequested));
         public static void EmitNavBarVisibilityRequested(bool visible)       => _safeInvoke(OnNavBarVisibilityRequested, visible, nameof(OnNavBarVisibilityRequested));
+        public static void EmitThemeColorsChanged(Color primary, Color background) => _safeInvoke(OnThemeColorsChanged, primary, background, nameof(OnThemeColorsChanged));
 
         // ── Limpieza ───────────────────────────────────────────────────
 
@@ -122,6 +131,7 @@ namespace Lutra.Core.Events
             OnNotificationsChanged  = null;
             OnEmotionModalRequested = null;
             OnNavBarVisibilityRequested = null;
+            OnThemeColorsChanged    = null;
         }
 
         // ── Helpers de invocación segura ───────────────────────────────

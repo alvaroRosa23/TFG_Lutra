@@ -195,6 +195,16 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 - [x] **`ReportExportController`** en `ChartsScreen` (o en el panel): asignar `_charts` (el `ChartsController`) y `_view` (el `ExportPanelView`).
 - [x] **Probar en el editor:** Estadísticas → Exportar → Generar: se abre la carpeta con `Lutra_Informe_fecha.pdf` y `Lutra_Datos_fecha.zip`. En el móvil se abre el menú de compartir.
 
+### Daltonismo y color del tema (2026-10-09)
+
+- [ ] **Probar la UI con Canvas de cámara** (lo hace `CanvasCameraBinder` en ejecución, no hay que tocar las escenas): en Play Mode, el menú, las pantallas, los diálogos y los 4 minijuegos se ven y responden igual que antes. En BreathJump, el HUD sobre las plataformas.
+- [ ] **Probar el daltonismo**: Ajustes → cada modo; la pantalla debe cambiar ligeramente (más contraste entre rojo/verde o azul/amarillo), no "apagarse".
+- [ ] **⭐ Siguiente sesión — que se vean la emoción y la cultura** (el código está listo; ahora ningún elemento lleva `ThemedGraphic`, así que no se nota nada):
+  1. Menú principal: `ThemedGraphic` en el panel inferior (`BottomSheet`) y en los botones — Slot *Primary*, Strength 0,3-0,5, Alpha 1. Probar con check-ins de emociones distintas y con una cuenta de otra cultura.
+  2. Decidir en qué otras pantallas se aplica (mismo criterio: elementos de la interfaz, no el arte).
+  3. Pedir a diseño los fondos por capas (p. ej. agua o cielo aparte, en tonos claros) para teñir solo esa capa; alternativa: velo con alpha ≤ 0,15.
+  4. Opcional: selector de cultura en Ajustes (ahora solo se elige en el onboarding).
+
 ---
 
 ## Registro de decisiones
@@ -237,6 +247,9 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 | 2026-10-09 | **Sin Firebase Analytics**: paquete quitado y librería nativa de Android desactivada por manifiesto | No se usaba y recogería datos que el consentimiento no menciona (datos de salud, RGPD art. 9) |
 | 2026-10-09 | **Sin logs en las builds de release** | Varios logs incluían email, nombre y UID |
 | 2026-10-09 | Paneles de la colección de estrellas y del telescopio en SafeZone: se montan con el rediseño de la Zona Segura | Evitar montarlos dos veces |
+| 2026-10-09 | Daltonismo: **corrección (daltonización)** con Machado et al. (2009), no simulación; todos los Canvas en Screen Space - Camera | Las matrices anteriores simulaban la deficiencia; en Overlay la UI no pasaba por el filtro |
+| 2026-10-09 | Colores de tema por pantalla con `ThemedGraphic` (capa teñible del arte o velo de color) en vez de un único `_backgroundImage` | Cada pantalla tendrá su fondo diseñado; el equipo de diseño decide cómo se integra el color en cada una |
+| 2026-10-09 | **Ajustes por usuario sincronizados** en `Preferences["appSettings"]`; en Login, Registro y Onboarding, ajustes por defecto sin filtro | Al iniciar sesión en cualquier dispositivo se recupera la configuración completa; sin usuario identificado no se aplican ajustes personales |
 | 2026-10-06 | Fuera de alcance: PHQ-8, GAD-7, ERQ, registro de actividades, pasos (Health Connect/HealthKit), FruitNinja como indicador de impulsividad | Alcance del TFG |
 
 ## Pendiente de confirmar

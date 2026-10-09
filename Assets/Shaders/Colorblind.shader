@@ -24,9 +24,17 @@ Shader "Lutra/Colorblind"
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
 
-            float3 _RowR;
-            float3 _RowG;
-            float3 _RowB;
+            // Daltonización (corrección), no simulación. En cada píxel:
+            //   1. sim  = cómo lo ve la persona con daltonismo (matriz _Sim*, Machado et al., 2009)
+            //   2. err  = color original − sim (la información que no percibe)
+            //   3. out  = original + _Shift * err (esa información pasa a los canales que sí distingue)
+            // Las matrices se aplican en RGB lineal: el proyecto usa espacio de color Linear.
+            float3 _SimR;
+            float3 _SimG;
+            float3 _SimB;
+            float3 _ShiftR;
+            float3 _ShiftG;
+            float3 _ShiftB;
 
             struct Attributes
             {
@@ -51,11 +59,12 @@ Shader "Lutra/Colorblind"
             half4 frag(Varyings i) : SV_Target
             {
                 half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
-                half3 result;
-                result.r = dot(col.rgb, _RowR);
-                result.g = dot(col.rgb, _RowG);
-                result.b = dot(col.rgb, _RowB);
-                return half4(result, col.a);
+
+                float3 sim = float3(dot(col.rgb, _SimR), dot(col.rgb, _SimG), dot(col.rgb, _SimB));
+                float3 err = col.rgb - sim;
+                float3 result = col.rgb + float3(dot(err, _ShiftR), dot(err, _ShiftG), dot(err, _ShiftB));
+
+                return half4(saturate(result), col.a);
             }
             ENDHLSL
         }

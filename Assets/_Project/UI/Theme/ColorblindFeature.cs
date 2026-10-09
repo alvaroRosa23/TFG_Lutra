@@ -7,7 +7,9 @@ using Lutra.Core.Data.Models;
 namespace Lutra.UI.Theme
 {
     /// <summary>
-    /// Renderer Feature que aplica una corrección de color de daltonismo sobre el framebuffer.
+    /// Renderer Feature que aplica una corrección de color de daltonismo (daltonización) sobre el framebuffer.
+    /// Solo afecta a lo que dibuja la cámara: los Canvas deben estar en Screen Space - Camera
+    /// (un Canvas en Screen Space - Overlay se dibuja después de URP y no pasa por este filtro).
     /// Añadir al Renderer2D asset (Settings/Renderer2D) y asignar el shader Lutra/Colorblind.
     /// Activar/desactivar via ColorblindFeature.CurrentMode desde SettingsManager.
     /// </summary>
@@ -22,19 +24,37 @@ namespace Lutra.UI.Theme
         /// <summary>Modo activo; escribe SettingsManager en Awake y al cambiar ajustes.</summary>
         public static ColorblindMode CurrentMode { get; set; } = ColorblindMode.None;
 
-        // ── Matrices de corrección de color (daltonización) ─────────────
+        // ── Daltonización ────────────────────────────────────────────────
+        // El shader simula cómo ve el color la persona (matriz Sim), calcula lo que pierde
+        // (original − simulado) y lo redistribuye a los canales que sí distingue (matriz Shift).
+        //
+        // Simulación: Machado, Oliveira y Fernandes (2009), severidad 1.0, en RGB lineal
+        // (el proyecto usa espacio de color Linear). Redistribución: método de Fidaner, Lin y
+        // Ozguven (2005) — en protanopia y deuteranopia el error del rojo pasa al verde y al azul;
+        // en tritanopia, por simetría, el error del azul pasa al rojo y al verde.
+        // Nota: las matrices anteriores (0.625, 0.375…) eran de SIMULACIÓN y no corregían nada.
 
-        private static readonly Vector3 Deut_R = new(0.625f, 0.375f, 0.000f);
-        private static readonly Vector3 Deut_G = new(0.700f, 0.300f, 0.000f);
-        private static readonly Vector3 Deut_B = new(0.000f, 0.300f, 0.700f);
+        private static readonly Vector3 Prot_SimR = new( 0.152286f,  1.052583f, -0.204868f);
+        private static readonly Vector3 Prot_SimG = new( 0.114503f,  0.786281f,  0.099216f);
+        private static readonly Vector3 Prot_SimB = new(-0.003882f, -0.048116f,  1.051998f);
 
-        private static readonly Vector3 Prot_R = new(0.567f, 0.433f, 0.000f);
-        private static readonly Vector3 Prot_G = new(0.558f, 0.442f, 0.000f);
-        private static readonly Vector3 Prot_B = new(0.000f, 0.242f, 0.758f);
+        private static readonly Vector3 Deut_SimR = new( 0.367322f,  0.860646f, -0.227968f);
+        private static readonly Vector3 Deut_SimG = new( 0.280085f,  0.672501f,  0.047413f);
+        private static readonly Vector3 Deut_SimB = new(-0.011820f,  0.042940f,  0.968881f);
 
-        private static readonly Vector3 Trit_R = new(0.950f, 0.050f, 0.000f);
-        private static readonly Vector3 Trit_G = new(0.000f, 0.433f, 0.567f);
-        private static readonly Vector3 Trit_B = new(0.000f, 0.475f, 0.525f);
+        private static readonly Vector3 Trit_SimR = new( 1.255528f, -0.076749f, -0.178779f);
+        private static readonly Vector3 Trit_SimG = new(-0.078411f,  0.930809f,  0.147602f);
+        private static readonly Vector3 Trit_SimB = new( 0.004733f,  0.691367f,  0.304143f);
+
+        // Rojo-verde (protanopia y deuteranopia): el error del rojo se reparte en verde y azul
+        private static readonly Vector3 RedGreen_ShiftR = new(0.0f, 0.0f, 0.0f);
+        private static readonly Vector3 RedGreen_ShiftG = new(0.7f, 1.0f, 0.0f);
+        private static readonly Vector3 RedGreen_ShiftB = new(0.7f, 0.0f, 1.0f);
+
+        // Azul-amarillo (tritanopia): el error del azul se reparte en rojo y verde
+        private static readonly Vector3 BlueYellow_ShiftR = new(1.0f, 0.0f, 0.7f);
+        private static readonly Vector3 BlueYellow_ShiftG = new(0.0f, 1.0f, 0.7f);
+        private static readonly Vector3 BlueYellow_ShiftB = new(0.0f, 0.0f, 0.0f);
 
         // ── ScriptableRendererFeature ────────────────────────────────────
 
@@ -87,22 +107,26 @@ namespace Lutra.UI.Theme
         {
             switch (mode)
             {
-                case ColorblindMode.Deuteranopia:
-                    _material.SetVector("_RowR", Deut_R);
-                    _material.SetVector("_RowG", Deut_G);
-                    _material.SetVector("_RowB", Deut_B);
-                    break;
                 case ColorblindMode.Protanopia:
-                    _material.SetVector("_RowR", Prot_R);
-                    _material.SetVector("_RowG", Prot_G);
-                    _material.SetVector("_RowB", Prot_B);
+                    _setMatrices(Prot_SimR, Prot_SimG, Prot_SimB, RedGreen_ShiftR, RedGreen_ShiftG, RedGreen_ShiftB);
+                    break;
+                case ColorblindMode.Deuteranopia:
+                    _setMatrices(Deut_SimR, Deut_SimG, Deut_SimB, RedGreen_ShiftR, RedGreen_ShiftG, RedGreen_ShiftB);
                     break;
                 case ColorblindMode.Tritanopia:
-                    _material.SetVector("_RowR", Trit_R);
-                    _material.SetVector("_RowG", Trit_G);
-                    _material.SetVector("_RowB", Trit_B);
+                    _setMatrices(Trit_SimR, Trit_SimG, Trit_SimB, BlueYellow_ShiftR, BlueYellow_ShiftG, BlueYellow_ShiftB);
                     break;
             }
+        }
+
+        private void _setMatrices(Vector3 simR, Vector3 simG, Vector3 simB, Vector3 shiftR, Vector3 shiftG, Vector3 shiftB)
+        {
+            _material.SetVector("_SimR", simR);
+            _material.SetVector("_SimG", simG);
+            _material.SetVector("_SimB", simB);
+            _material.SetVector("_ShiftR", shiftR);
+            _material.SetVector("_ShiftG", shiftG);
+            _material.SetVector("_ShiftB", shiftB);
         }
 
         // ── Inner render pass ────────────────────────────────────────────

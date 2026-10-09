@@ -4,6 +4,7 @@ using Lutra.Core.Data.Persistence;
 using Lutra.Core.Systems;
 using Lutra.Core.Data.Models;
 using Lutra.UI.Theme;
+using Lutra.UI.Components;
 
 namespace Lutra.Core.Architecture
 {
@@ -48,6 +49,9 @@ namespace Lutra.Core.Architecture
         private DatabaseManager _databaseManager;
         private DataRepository  _dataRepository;
 
+        /// <summary>Escena de arranque (Main.unity): tras DontDestroyOnLoad, gameObject.scene ya no lo es.</summary>
+        private UnityEngine.SceneManagement.Scene _bootScene;
+
         // ── Unity lifecycle ────────────────────────────────────────────
 
         /// <summary>
@@ -70,6 +74,11 @@ namespace Lutra.Core.Architecture
             }
 
             Instance = this;
+
+            // Guardar la escena antes de DontDestroyOnLoad; sus Canvas se configuran en Start,
+            // porque durante los Awake la escena aún no cuenta como cargada
+            _bootScene = gameObject.scene;
+
             DontDestroyOnLoad(gameObject);
 
             if (_appStateMachine == null)
@@ -80,6 +89,9 @@ namespace Lutra.Core.Architecture
         {
             try
             {
+                // UI en Screen Space - Camera para que le llegue el filtro de daltonismo (antes del primer frame)
+                CanvasCameraBinder.BindScene(_bootScene, Camera.main);
+
                 await _registerServices();
                 await StartApp();
             }
