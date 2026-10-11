@@ -27,6 +27,14 @@ namespace Lutra.Tests
         }
 
         [Test]
+        public void MinimoDeMotivos_CreceConElPeriodo()
+        {
+            Assert.AreEqual(1,  ChartPeriod.Week.MinMotiveOccurrences());
+            Assert.AreEqual(3,  ChartPeriod.Month.MinMotiveOccurrences());
+            Assert.AreEqual(10, ChartPeriod.AllTime.MinMotiveOccurrences());
+        }
+
+        [Test]
         public void EjeX_FechaCorta()
         {
             Assert.AreEqual("9 sep", StatsTextBuilder.AxisDate(new DateTime(2026, 9, 9)));

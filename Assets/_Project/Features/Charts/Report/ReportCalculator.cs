@@ -64,7 +64,7 @@ namespace Lutra.Features.Charts
             _mood(data.Mood, daily, previousDaily, user, DailyEmotions(user));
             _dynamics(data.Dynamics, daily, previousDaily);
             _emotions(data.Emotions, user);
-            data.Motives = _motives(user);
+            data.Motives = _motives(user, input.MinMotiveOccurrences);
             _patterns(data.Patterns, daily, user);
             _minigames(data.Minigames, input.Sessions ?? new List<MinigameSession>());
             _diary(data.Diary, input, data.DaysInRange);
@@ -286,7 +286,7 @@ namespace Lutra.Features.Charts
 
         // ── §4.4 Motivos ───────────────────────────────────────────────
 
-        private static List<MotiveStat> _motives(List<EmotionRecord> user)
+        private static List<MotiveStat> _motives(List<EmotionRecord> user, int minOccurrences)
         {
             var rated = user.Where(r => r.MoodLevel > 0).ToList();
             var keysByRecord = rated.ToDictionary(
@@ -298,7 +298,7 @@ namespace Lutra.Features.Charts
             {
                 var with    = rated.Where(r => keysByRecord[r].Contains(key)).ToList();
                 var without = rated.Where(r => !keysByRecord[r].Contains(key)).ToList();
-                if (with.Count < MinMotiveOccurrences) continue;
+                if (with.Count < Math.Max(1, minOccurrences)) continue;
 
                 var stat = new MotiveStat
                 {

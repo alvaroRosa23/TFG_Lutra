@@ -38,8 +38,13 @@ namespace Lutra.Features.Charts
         /// Calcula el informe del periodo [from, to]. El periodo anterior para comparar tiene la misma
         /// duración y termina justo antes de <paramref name="from"/>.
         /// </summary>
-        public static async Task<ReportData> LoadAsync(DateTime from, DateTime to)
-            => ReportCalculator.Calculate(await BuildInputAsync(from, to));
+        public static async Task<ReportData> LoadAsync(DateTime from, DateTime to,
+                                                       int minMotiveOccurrences = ReportCalculator.MinMotiveOccurrences)
+        {
+            var input = await BuildInputAsync(from, to);
+            input.MinMotiveOccurrences = minMotiveOccurrences;
+            return ReportCalculator.Calculate(input);
+        }
 
         /// <summary>Datos de entrada del periodo (también los usa la exportación para los CSV y las notas).</summary>
         public static async Task<ReportInput> BuildInputAsync(DateTime from, DateTime to)

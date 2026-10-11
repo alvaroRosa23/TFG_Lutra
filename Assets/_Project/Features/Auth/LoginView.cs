@@ -42,6 +42,9 @@ namespace Lutra.Features.Auth
             _loginButton?.onClick.AddListener(() => OnLoginClicked?.Invoke());
             _registerButton?.onClick.AddListener(() => OnRegisterClicked?.Invoke());
             _forgotPasswordButton?.onClick.AddListener(() => OnForgotPasswordClicked?.Invoke());
+
+            // La contraseña se muestra oculta (asteriscos)
+            _setPasswordField(_passwordInput);
         }
 
         private void OnDestroy()
@@ -49,6 +52,13 @@ namespace Lutra.Features.Auth
             _loginButton?.onClick.RemoveAllListeners();
             _registerButton?.onClick.RemoveAllListeners();
             _forgotPasswordButton?.onClick.RemoveAllListeners();
+        }
+
+        private static void _setPasswordField(TMP_InputField input)
+        {
+            if (input == null) return;
+            input.contentType = TMP_InputField.ContentType.Password;
+            input.ForceLabelUpdate();
         }
 
         // ── API pública ────────────────────────────────────────────────

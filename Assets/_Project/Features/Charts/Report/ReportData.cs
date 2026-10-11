@@ -28,6 +28,9 @@ namespace Lutra.Features.Charts
         /// <summary>Notificaciones de tipo Support del periodo (activaciones del protocolo de apoyo).</summary>
         public List<AppNotification> SupportNotifications = new List<AppNotification>();
 
+        /// <summary>Apariciones mínimas de un motivo para calcularlo (la pantalla lo ajusta según el periodo).</summary>
+        public int MinMotiveOccurrences = ReportCalculator.MinMotiveOccurrences;
+
         public bool         DiaryAnalysisEnabled = true;
         public DiaryLexicon Lexicon;
 

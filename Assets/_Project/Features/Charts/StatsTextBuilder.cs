@@ -23,6 +23,20 @@ namespace Lutra.Features.Charts
             }
         }
 
+        /// <summary>
+        /// Apariciones mínimas de un motivo para salir en "Qué influye en ti": crece con el periodo
+        /// para que en una semana salga desde el primer check-in y en "Todo" solo los habituales.
+        /// </summary>
+        public static int MinMotiveOccurrences(this ChartPeriod period)
+        {
+            switch (period)
+            {
+                case ChartPeriod.Month:   return 3;
+                case ChartPeriod.AllTime: return 10;
+                default:                  return 1;
+            }
+        }
+
         /// <summary>"esta semana", "estos 30 días", "desde que empezaste".</summary>
         public static string CurrentText(this ChartPeriod period)
         {

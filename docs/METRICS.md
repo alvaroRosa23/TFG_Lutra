@@ -181,7 +181,7 @@ La **emodiversidad** sustituye a la granularidad emocional: la granularidad (Kas
 
 ### 4.4 Contexto y motivos (nivel B)
 
-Para cada motivo con ≥ 3 apariciones en el periodo (registros de Día y de Momento con ánimo; agrupación con `MotiveTags.GroupKey`):
+Para cada motivo con un mínimo de apariciones en el periodo (registros de Día y de Momento con ánimo; agrupación con `MotiveTags.GroupKey`). El mínimo depende del periodo (`ReportInput.MinMotiveOccurrences`): en la pantalla de Estadísticas, **1** en Semana, **3** en Mes y **10** en Todo (`ChartPeriod.MinMotiveOccurrences()`), para que en una semana salgan los motivos desde el primer check-in y en Todo solo los habituales; el informe exportado usa siempre **3**. En la pantalla, además, la diferencia debe ser ≥ 0,3 puntos:
 - frecuencia (nº y % de registros);
 - ánimo medio de los registros **con** ese motivo vs **sin** él, y la diferencia;
 - emoción más frecuente con ese motivo.

@@ -78,7 +78,7 @@ namespace Lutra.Features.Charts
             {
                 DateTime now = DateTime.Now;
                 var (from, to) = period.GetRange(now);
-                var data = await ReportDataLoader.LoadAsync(from, to);
+                var data = await ReportDataLoader.LoadAsync(from, to, period.MinMotiveOccurrences());
                 if (version != _loadVersion) return;
 
                 DateTime today = now.Date;

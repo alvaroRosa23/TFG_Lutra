@@ -33,6 +33,7 @@ namespace Lutra.Features.EmotionCheck
         [SerializeField] private Transform   _emotionTagsContainer;
         [SerializeField] private GameObject  _emotionTagPrefab;
         [SerializeField] private Button      _seeMoreEmotionsButton;
+        [Tooltip("Obsoleto: las emociones extra van en _emotionTagsContainer. Se mantiene oculto.")]
         [SerializeField] private GameObject  _extraEmotionsPanel;
 
         [Header("Motivo")]
@@ -70,6 +71,12 @@ namespace Lutra.Features.EmotionCheck
 
         private List<EmotionTagButton> _emotionTagButtons = new();
         private List<EmotionTagButton> _motiveTagButtons  = new();
+        private List<(GameObject go, EmotionType emotion)> _extraEmotionTags = new();
+        private bool _extraEmotionsShown = false;
+
+        private const int    VisibleEmotionCount = 6;
+        private const string SeeMoreText         = "Ver más";
+        private const string SeeLessText         = "Ver menos";
 
         // ── Unity lifecycle ────────────────────────────────────────────
 
@@ -127,8 +134,7 @@ namespace Lutra.Features.EmotionCheck
             _photoPath = null;
             ClearError();
 
-            if (_extraEmotionsPanel != null)
-                _extraEmotionsPanel.SetActive(false);
+            _setExtraEmotionsShown(false);
             if (_otherMotiveInputPanel != null)
             {
                 _otherMotiveInputPanel.SetActive(false);
@@ -198,8 +204,8 @@ namespace Lutra.Features.EmotionCheck
         }
 
         /// <summary>
-        /// Instancia los 8 EmotionType como tags: los primeros 6 en el contenedor
-        /// principal y los 2 restantes en el panel expandido.
+        /// Instancia los 8 EmotionType como tags en el mismo contenedor; a partir del 6.º
+        /// quedan ocultos hasta pulsar "Ver más", así la cuadrícula crece hacia abajo.
         /// </summary>
         public void LoadEmotionTags()
         {
@@ -212,26 +218,20 @@ namespace Lutra.Features.EmotionCheck
             for (int i = _emotionTagsContainer.childCount - 1; i >= 0; i--)
                 DestroyImmediate(_emotionTagsContainer.GetChild(i).gameObject);
 
-            if (_extraEmotionsPanel != null)
-                for (int i = _extraEmotionsPanel.transform.childCount - 1; i >= 0; i--)
-                    DestroyImmediate(_extraEmotionsPanel.transform.GetChild(i).gameObject);
-
             Debug.Log($"[LoadEmotionTags] Container limpio. " +
                       $"Hijos restantes: {_emotionTagsContainer.childCount}");
 
             _emotionTagButtons.Clear();
+            _extraEmotionTags.Clear();
 
             var emotions = (EmotionType[])Enum.GetValues(typeof(EmotionType));
             for (int i = 0; i < emotions.Length; i++)
             {
-                var emotion  = emotions[i];
-                Transform container = (i < 6)
-                    ? _emotionTagsContainer
-                    : _extraEmotionsPanel?.transform;
+                var emotion = emotions[i];
+                var go      = Instantiate(_emotionTagPrefab, _emotionTagsContainer, false);
+                if (i >= VisibleEmotionCount)
+                    _extraEmotionTags.Add((go, emotion));
 
-                if (container == null) continue;
-
-                var go  = Instantiate(_emotionTagPrefab, container, false);
                 var btn = go.GetComponent<EmotionTagButton>();
                 if (btn == null) continue;
 
@@ -282,6 +282,7 @@ namespace Lutra.Features.EmotionCheck
 
             if (_extraEmotionsPanel != null)
                 _extraEmotionsPanel.SetActive(false);
+            _setExtraEmotionsShown(false);
 
             // Forzar recálculo del layout en orden correcto
             Canvas.ForceUpdateCanvases();
@@ -415,8 +416,7 @@ namespace Lutra.Features.EmotionCheck
         {
             _seeMoreEmotionsButton?.onClick.AddListener(() =>
             {
-                bool newState = !_extraEmotionsPanel.activeSelf;
-                _extraEmotionsPanel.SetActive(newState);
+                _setExtraEmotionsShown(!_extraEmotionsShown);
                 _ = _refreshLayoutNextFrame();
             });
 
@@ -440,13 +440,37 @@ namespace Lutra.Features.EmotionCheck
                 Debug.Log("[EmotionCheckView] Foto: próximamente"));
         }
 
+        private void _setExtraEmotionsShown(bool shown)
+        {
+            _extraEmotionsShown = shown;
+            // Una emoción extra seleccionada sigue visible al plegar
+            foreach (var (go, emotion) in _extraEmotionTags)
+                if (go != null) go.SetActive(shown || _selectedEmotion == emotion);
+
+            var label = _seeMoreEmotionsButton != null
+                ? _seeMoreEmotionsButton.GetComponentInChildren<TextMeshProUGUI>(true)
+                : null;
+            if (label != null)
+                label.text = shown ? SeeLessText : SeeMoreText;
+        }
+
         private async Task _refreshLayoutNextFrame()
         {
             await Task.Yield();
             Canvas.ForceUpdateCanvases();
-            var scrollRect = GetComponentInParent<ScrollRect>();
-            if (scrollRect?.content != null)
-                LayoutRebuilder.ForceRebuildLayoutImmediate(scrollRect.content);
+            // La vista no cuelga del ScrollView: se recalcula de dentro hacia fuera
+            foreach (var container in new[] { _emotionTagsContainer, _motiveTagsContainer })
+            {
+                if (container is not RectTransform rt) continue;
+                LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
+                if (rt.parent is RectTransform parentRt)
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
+            }
+            var scrollContent = _emotionTagsContainer != null
+                ? _emotionTagsContainer.GetComponentInParent<ScrollRect>()?.content
+                : null;
+            if (scrollContent != null)
+                LayoutRebuilder.ForceRebuildLayoutImmediate(scrollContent);
             Canvas.ForceUpdateCanvases();
         }
 

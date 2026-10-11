@@ -216,6 +216,18 @@ namespace Lutra.Tests
             Assert.IsEmpty(ReportCalculator.Calculate(_input(records)).Motives);
         }
 
+        [Test]
+        public void Motivos_RespetanElMinimoDelInput()
+        {
+            var records = new List<EmotionRecord> { _day(0, 2, motivesJson: "[\"Salud\"]"), _day(1, 4) };
+            var input = _input(records);
+            input.MinMotiveOccurrences = 1;
+
+            var salud = ReportCalculator.Calculate(input).Motives.Single(m => m.Key == "Salud");
+            Assert.AreEqual(1, salud.Count);
+            Assert.AreEqual(-2f, salud.Difference.Value, 0.001f);
+        }
+
         // ── §4.5 Patrones ──────────────────────────────────────────────
 
         [Test]

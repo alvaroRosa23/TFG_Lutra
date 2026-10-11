@@ -29,6 +29,17 @@ namespace Lutra.Features.Auth
 
             _registerButton?.onClick.AddListener(() => OnRegisterClicked?.Invoke());
             _backButton?.onClick.AddListener(() => OnBackClicked?.Invoke());
+
+            // Las contraseñas se muestran ocultas (asteriscos)
+            _setPasswordField(_passwordInput);
+            _setPasswordField(_confirmPasswordInput);
+        }
+
+        private static void _setPasswordField(TMP_InputField input)
+        {
+            if (input == null) return;
+            input.contentType = TMP_InputField.ContentType.Password;
+            input.ForceLabelUpdate();
         }
 
         private void OnDestroy()
