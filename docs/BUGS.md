@@ -82,6 +82,10 @@
 
 ## Bugs resueltos — SafeZone (sesiones de implementación)
 
+- **No se podía interactuar con la Zona Segura** (2026-10-17): en el commit `1d827e8` (arte nuevo del refugio) `ButtonBackdrop` (`_popupBackdrop`, botón invisible a pantalla completa) quedó activo y se quedaba con todos los toques. `SafeZoneView` lo apaga en `Awake` y solo lo activa, justo bajo el popup, mientras el popup del inventario está abierto.
+- **Botones Tienda/Habitación tapados con la tienda abierta** (2026-10-17): la cabecera pasó a 247 de alto pero `Panel_Shop` empieza a 120 del borde y se dibujaba después. La cabecera va ahora por encima de `Panel_Shop` en el orden de hermanos (lo corrige el menú de la habitación panorámica).
+- **Barra de inventario fuera de pantalla con la habitación panorámica** (2026-10-17): estaba anclada al borde inferior del antiguo `Panel_Room` de 100×100. Ahora va anclada abajo, sobre la BottomNavBar, y es plegable para no tapar los puntos de abajo.
+
 - **DraggableItem crash "Setup() no fue llamado"**: el prefab ya tenía `DraggableItem` en el editor; `AddComponent` añadía un segundo sin configurar y los eventos se disparaban en ambos. Resuelto con `GetComponent<DraggableItem>()` (sin `??`) y null-guards en los tres handlers de drag.
 - **Unity fake-null con `??` operator**: `GetComponent<CanvasGroup>() ?? AddComponent<CanvasGroup>()` siempre ejecuta `AddComponent` porque el fake-null de Unity no es C# null. Corregido en `DraggableItem.Setup()`, `SafeZoneView._setInventoryContainerRaycasts()` y cualquier otro uso con el patrón `var x = Get...; if (x == null) x = Add...`.
 - **MissingComponentException en `_setInventoryContainerRaycasts`**: mismo problema de fake-null. Corregido con null check explícito.

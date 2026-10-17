@@ -25,6 +25,8 @@ namespace Lutra.Features.SafeZone
         // ── Habitación ─────────────────────────────────────────────────
 
         [Header("Habitación")]
+        [Tooltip("Habitación panorámica (Panel_Room): fondo deslizable y día/noche")]
+        [SerializeField] private SafeZoneRoom        _room;
         [SerializeField] private PlacementPoint[]    _placementPoints;
         [SerializeField] private TextMeshProUGUI     _coinsLabel;
         [Tooltip("Libro fijo de la habitación: abre la colección de estrellas")]
@@ -35,6 +37,9 @@ namespace Lutra.Features.SafeZone
         [Header("Inventario")]
         [SerializeField] private Canvas     _rootCanvasOverride;
         [SerializeField] private GameObject _inventoryBar;
+        [Tooltip("Abre y cierra la barra de inventario (plegada por defecto). Sin asignar, la barra está siempre abierta")]
+        [SerializeField] private Button          _inventoryToggleButton;
+        [SerializeField] private TextMeshProUGUI _inventoryToggleLabel;
         [SerializeField] private Transform  _inventoryContainer;
         [SerializeField] private GameObject _inventoryItemPrefab;
 
@@ -128,7 +133,9 @@ namespace Lutra.Features.SafeZone
         private PlacementType _pendingPlacementType;
         private Canvas        _rootCanvas;
         private SafeZoneItem  _selectedInventoryItem;
-        private bool          _hasUnplacedItems;
+        private int           _unplacedCount;
+        private bool          _inventoryOpen;
+        private bool          _shopOpen;
         private bool?         _activeShopFilter;   // null = todos, false = decoración, true = accesorios
 
         private readonly List<(GameObject go, ItemCategory category)> _shopItems = new();
@@ -163,9 +170,13 @@ namespace Lutra.Features.SafeZone
             _roomItemOptionsDialog?.SetActive(false);
             _sellConfirmDialog?.SetActive(false);
             _inventoryItemPopup?.SetActive(false);
+            // El backdrop es invisible y ocupa toda la pantalla: si se queda activo bloquea la habitación
+            _popupBackdrop?.gameObject.SetActive(false);
             _notEnoughCoinsPanel?.SetActive(false);
             _shopPanel?.SetActive(false);
-            _inventoryBar?.SetActive(true);
+            _inventoryBar?.SetActive(false);
+            _inventoryToggleButton?.gameObject.SetActive(false);
+            _inventoryToggleButton?.onClick.AddListener(_onInventoryToggleClicked);
 
             _subscribeToPlacementPoints();
         }
@@ -188,6 +199,7 @@ namespace Lutra.Features.SafeZone
             _popupBackdrop?.onClick.RemoveAllListeners();
             _popupPlaceButton?.onClick.RemoveAllListeners();
             _popupSellButton?.onClick.RemoveAllListeners();
+            _inventoryToggleButton?.onClick.RemoveAllListeners();
 
             _unsubscribeFromPlacementPoints();
 
@@ -209,6 +221,16 @@ namespace Lutra.Features.SafeZone
         }
 
         // ── API pública ────────────────────────────────────────────────
+
+        /// <summary>Al abrir la Zona Segura: muestra el trozo central de la habitación y pliega el inventario.</summary>
+        public void ResetRoom()
+        {
+            if (_room != null && _room.isActiveAndEnabled)
+                _room.CenterView();
+
+            _inventoryOpen = false;
+            _updateInventoryVisibility();
+        }
 
         /// <summary>Actualiza la habitación con los ítems colocados.</summary>
         public void RefreshRoom(List<InventoryItem> inventory, SafeZoneItem[] allItems)
@@ -244,7 +266,7 @@ namespace Lutra.Features.SafeZone
 
             if (inventory == null || allItems == null || _inventoryItemPrefab == null) return;
 
-            bool hasUnplaced = false;
+            int unplaced = 0;
 
             foreach (var inv in inventory)
             {
@@ -254,7 +276,7 @@ namespace Lutra.Features.SafeZone
                 if (def == null || def.category == ItemCategory.MascotAccessory) continue;
                 if (def.placementType == PlacementType.None) continue;
 
-                hasUnplaced = true;
+                unplaced++;
 
                 var go   = Instantiate(_inventoryItemPrefab, _inventoryContainer, false);
                 var view = go.GetComponent<InventoryItemView>();
@@ -263,14 +285,17 @@ namespace Lutra.Features.SafeZone
                     view.Setup(def, (item, anchor) => _showInventoryItemPopup(item, anchor));
 
                 // Reutilizar DraggableItem si el prefab ya lo tiene, si no añadir uno nuevo
-                var draggable = go.GetComponent<DraggableItem>() ?? go.AddComponent<DraggableItem>();
+                // (sin ??: el fake-null de Unity no es null de C#)
+                var draggable = go.GetComponent<DraggableItem>();
+                if (draggable == null) draggable = go.AddComponent<DraggableItem>();
                 draggable.Setup(def.itemId, def.placementType, _rootCanvas);
                 draggable.OnDragStarted   += d => { HideInventoryItemPopup(); EnterPlacementMode(d.PlacementType); };
+                draggable.OnDragMoved     += (d, screenPos) => { if (_room != null) _room.SetDragPointer(screenPos); };
                 draggable.OnDragCancelled += d => ExitPlacementMode();
             }
 
-            _hasUnplacedItems = hasUnplaced;
-            _inventoryBar?.SetActive(hasUnplaced);
+            _unplacedCount = unplaced;
+            _updateInventoryVisibility();
 
             if (_inventoryContainer is RectTransform rt)
                 LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
@@ -374,6 +399,7 @@ namespace Lutra.Features.SafeZone
         public void HideInventoryItemPopup()
         {
             _inventoryItemPopup?.SetActive(false);
+            _popupBackdrop?.gameObject.SetActive(false);
             _selectedInventoryItem = null;
         }
 
@@ -389,18 +415,27 @@ namespace Lutra.Features.SafeZone
             StartCoroutine(_notEnoughCoinsFeedback());
         }
 
-        /// <summary>Entra en modo de colocación: resalta los PlacementPoints válidos.</summary>
-        public void EnterPlacementMode(PlacementType type)
+        /// <summary>
+        /// Entra en modo de colocación: resalta los PlacementPoints válidos.
+        /// Con <paramref name="revealValidPoint"/>, si ninguno válido se ve en pantalla,
+        /// desliza la habitación hasta el primero (no se usa al arrastrar: el dedo manda).
+        /// </summary>
+        public void EnterPlacementMode(PlacementType type, bool revealValidPoint = false)
         {
             _placementModeActive  = true;
             _pendingPlacementType = type;
 
             // Bloquear el resto del inventario para evitar drags simultáneos
             _setInventoryContainerRaycasts(false);
+            // y esconder la barra para dejar libres los puntos de la parte de abajo
+            _updateInventoryVisibility();
 
             if (_placementPoints == null) return;
             foreach (var p in _placementPoints)
                 if (p != null) p.SetPlacementMode(true, type);
+
+            if (revealValidPoint)
+                _revealFirstValidPoint(type);
         }
 
         /// <summary>Sale del modo de colocación.</summary>
@@ -409,6 +444,8 @@ namespace Lutra.Features.SafeZone
             _placementModeActive = false;
 
             _setInventoryContainerRaycasts(true);
+            _updateInventoryVisibility();
+            if (_room != null) _room.ClearDragPointer();
 
             if (_placementPoints == null) return;
             foreach (var p in _placementPoints)
@@ -416,6 +453,57 @@ namespace Lutra.Features.SafeZone
         }
 
         // ── Métodos privados ───────────────────────────────────────────
+
+        private void _revealFirstValidPoint(PlacementType type)
+        {
+            if (_room == null || !_room.isActiveAndEnabled) return;
+
+            PlacementPoint first = null;
+            foreach (var p in _placementPoints)
+            {
+                if (p == null || p.IsOccupied || !p.AcceptsType(type)) continue;
+                var rt = (RectTransform)p.transform;
+                if (_room.IsVisible(rt)) return;
+                if (first == null) first = p;
+            }
+
+            if (first != null)
+                _room.Reveal((RectTransform)first.transform);
+        }
+
+        /// <summary>
+        /// Barra y botón del inventario. Durante la colocación la barra no se desactiva (el objeto
+        /// arrastrado salió de ella y vuelve al soltarlo): se hace invisible con su CanvasGroup.
+        /// </summary>
+        private void _updateInventoryVisibility()
+        {
+            bool hasItems = _unplacedCount > 0;
+            if (!hasItems) _inventoryOpen = false;
+
+            bool hasToggle = _inventoryToggleButton != null;
+            bool roomShown = !_shopOpen;
+
+            if (hasToggle)
+                _inventoryToggleButton.gameObject.SetActive(roomShown && hasItems && !_placementModeActive);
+
+            if (_inventoryToggleLabel != null)
+                _inventoryToggleLabel.text = _inventoryOpen ? "Cerrar" : $"Objetos\n{_unplacedCount}";
+
+            if (_inventoryBar == null) return;
+            _inventoryBar.SetActive(roomShown && hasItems && (_inventoryOpen || !hasToggle));
+
+            var cg = _inventoryBar.GetComponent<CanvasGroup>();
+            if (cg == null) cg = _inventoryBar.AddComponent<CanvasGroup>();
+            cg.alpha          = _placementModeActive ? 0f : 1f;
+            cg.blocksRaycasts = !_placementModeActive;
+        }
+
+        private void _onInventoryToggleClicked()
+        {
+            HideInventoryItemPopup();
+            _inventoryOpen = !_inventoryOpen;
+            _updateInventoryVisibility();
+        }
 
         private void _setInventoryContainerRaycasts(bool enabled)
         {
@@ -433,6 +521,16 @@ namespace Lutra.Features.SafeZone
 
             if (_popupNameLabel  != null) _popupNameLabel.text = item.displayName;
             if (_popupSellButton != null) _popupSellButton.gameObject.SetActive(item.CanBeSold);
+
+            // El backdrop (cierra al pulsar fuera) va justo debajo del popup
+            if (_popupBackdrop != null)
+            {
+                var backdrop = _popupBackdrop.transform;
+                var popup    = _inventoryItemPopup.transform;
+                if (backdrop.parent == popup.parent && backdrop.GetSiblingIndex() > popup.GetSiblingIndex())
+                    backdrop.SetSiblingIndex(popup.GetSiblingIndex());
+                _popupBackdrop.gameObject.SetActive(true);
+            }
 
             _inventoryItemPopup.SetActive(true);
         }
@@ -481,17 +579,19 @@ namespace Lutra.Features.SafeZone
 
         private void _onRoomTabClicked()
         {
+            _shopOpen = false;
             _shopPanel?.SetActive(false);
             _roomPanel?.SetActive(true);
-            _inventoryBar?.SetActive(_hasUnplacedItems);
+            _updateInventoryVisibility();
             HideAllDialogs();
         }
 
         private void _onShopTabClicked()
         {
+            _shopOpen = true;
             _roomPanel?.SetActive(false);
             _shopPanel?.SetActive(true);
-            _inventoryBar?.SetActive(false);
+            _updateInventoryVisibility();
             HideInventoryItemPopup();
         }
 

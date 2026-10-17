@@ -255,4 +255,4 @@ Se hacen todos juntos al terminar las fases de código. Al completarlos, probar 
 
 ## Pendiente de confirmar
 
-- Nada por ahora.
+- **Zona Segura · puntos vacíos en blanco** (anotado 2026-10-17): `PlacementPoint` pinta los puntos vacíos como un cuadrado blanco opaco (regla "Vacío = Blanco" de CLAUDE.md) y sobre el arte nuevo del refugio tapan mucho. Propuesta: que los puntos vacíos sean invisibles (alfa 0, sin desactivar `_highlightImage`) y solo se vean en verde/rojo durante la colocación. Si se acepta, cambiar `ColorEmpty` en `PlacementPoint.cs` y la tabla de colores de CLAUDE.md.

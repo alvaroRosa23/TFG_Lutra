@@ -63,6 +63,8 @@ namespace Lutra.Features.SafeZone
 
         public async Task OpenSafeZone()
         {
+            _view?.ResetRoom();
+
             try
             {
                 _cachedProfile = await Repo.GetUserProfile();
@@ -155,7 +157,7 @@ namespace Lutra.Features.SafeZone
         private void _onPlaceRequested(SafeZoneItem item)
         {
             _pendingPlace = item;
-            _view?.EnterPlacementMode(item.placementType);
+            _view?.EnterPlacementMode(item.placementType, revealValidPoint: true);
         }
 
         private void _onPlacementConfirmed(int pointIndex)

@@ -17,6 +17,8 @@ namespace Lutra.Features.SafeZone
 
         /// <summary>Se dispara al iniciar el drag (para que la vista entre en modo colocación).</summary>
         public event Action<DraggableItem> OnDragStarted;
+        /// <summary>Se dispara en cada movimiento del drag (posición del dedo en pantalla).</summary>
+        public event Action<DraggableItem, Vector2> OnDragMoved;
         /// <summary>Se dispara al soltar sin drop válido.</summary>
         public event Action<DraggableItem> OnDragCancelled;
 
@@ -68,6 +70,7 @@ namespace Lutra.Features.SafeZone
         {
             if (_rectTransform == null || _rootCanvas == null) return;
             _rectTransform.anchoredPosition += eventData.delta / _rootCanvas.scaleFactor;
+            OnDragMoved?.Invoke(this, eventData.position);
         }
 
         public void OnEndDrag(PointerEventData eventData)

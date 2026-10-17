@@ -224,7 +224,7 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 
 `ColorblindFeature` ya está añadido al `Renderer2D.asset` con el shader `Lutra/Colorblind`.
 
-**Minijuegos**: Beatmaker, BreathJump, FruitNinja y StarFisher implementados, con escenas montadas y jugables; los tres últimos con arte provisional (placeholders). StarFisher: faltan los paneles de la colección y el telescopio en SafeZone (con el rediseño de la Zona Segura). 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
+**Minijuegos**: Beatmaker, BreathJump, FruitNinja y StarFisher implementados, con escenas montadas y jugables; los tres últimos con arte provisional (placeholders). StarFisher: faltan los paneles de la colección y el telescopio en SafeZone (la habitación panorámica ya está hecha; el libro va dentro de `RoomContent`). 4 por implementar (ver `docs/MINIGAMES.md` y `docs/STARFISHER.md`).
 
 **Estadísticas, informe profesional y centro de notificaciones** (fases 1-7 completas en código, con tests, y montadas en Unity; falta la comprobación de edad ≥ 18): usuarios ≥ 18 años; un profesional usa Lutra con sus pacientes y el paciente exporta el informe (PDF + CSV). Antes de tocar `Features/Charts`, minijuegos (ánimo antes/después), recompensas o el diario, leer `docs/METRICS.md` y el registro de decisiones de `docs/ROADMAP.md`. Puntos clave:
 - Las estadísticas excluyen siempre los registros con `Source != RecordSource.User`
@@ -252,6 +252,7 @@ Ver `docs/SYSTEMS.md` y `docs/FEATURES.md` para detalles de cada archivo.
 | `DraggableItem.cs` | Drag & drop de ítems del inventario; `IBeginDragHandler`, `IDragHandler`, `IEndDragHandler` |
 | `InventoryItemView.cs` | Icono en la barra de inventario; implementa `IPointerClickHandler` directamente (sin Button serializado) |
 | `ShopItemView.cs` | Ítem en la tienda; contiene el botón de compra |
+| `SafeZoneRoom.cs` | Habitación panorámica en `Panel_Room`: `ScrollRect` horizontal → `Viewport` → `RoomContent` (tamaño del arte, 3240×1920, escalado al alto de pantalla) con `Background_1..3` y los `PlacementPoint`. Fondo día/noche por hora local (20:00–7:00), auto-scroll al arrastrar cerca de los bordes, `Reveal` del primer punto válido al pulsar "Colocar". Scroll *Clamped* (sin rebote: fuera del arte no hay nada). Inventario plegable: `_inventoryToggleButton` ("Objetos N" / "Cerrar") abre la barra, que se oculta (CanvasGroup, sin desactivarla) durante la colocación. Se monta con **Lutra > Zona Segura > Montar habitación panorámica** (`Editor/SafeZoneRoomBuilder.cs`) |
 | `SafeZoneItem.cs` | ScriptableObject con: `itemId`, `displayName`, `previewSprite`, `prefab`, `coinCost`, `requiredStreakDays`, `category` (ItemCategory), `placementType`, `isUnlockedByDefault` |
 
 ### Enumeraciones relevantes
@@ -315,8 +316,14 @@ Si `Setup()` no se llamó (prefab con componente duplicado), los handlers de dra
 if (_rectTransform == null || _canvasGroup == null || _rootCanvas == null) return;
 ```
 
+**ButtonBackdrop activo bloquea toda la Zona Segura**
+`_popupBackdrop` es un botón invisible a pantalla completa (cierra el popup del inventario). Si queda activo en la escena tapa la habitación y nada responde. `SafeZoneView` lo apaga en `Awake` y solo lo enciende (justo debajo del popup) mientras el popup está abierto.
+
+**PlacementPoints dentro de `RoomContent`**
+Los puntos cuelgan de `RoomContent` para moverse con el fondo; sus coordenadas son píxeles del arte (trozo central: x de −540 a 540). Nunca cambiar el `placementIndex` de un punto existente (se guarda en SQLite y Firestore); los nuevos van al final.
+
 **Tab Tienda oculta todo (resuelto; mantener la jerarquía)**
-Al pulsar el tab de Tienda, `_roomPanel.SetActive(false)` apagaba también `_shopPanel` cuando este era hijo de `_roomPanel`. Ya son hermanos en `Main.unity` y el bug no aparece; mantenerlo así en el rediseño panorámico de la Zona Segura. La jerarquía correcta es que sean **hermanos** (hijos del mismo padre), no padre/hijo:
+Al pulsar el tab de Tienda, `_roomPanel.SetActive(false)` apagaba también `_shopPanel` cuando este era hijo de `_roomPanel`. Ya son hermanos en `Main.unity` y el bug no aparece; mantenerlo así. La jerarquía correcta es que sean **hermanos** (hijos del mismo padre), no padre/hijo:
 ```
 SafeZoneScreen
 ├── Panel_Room    ← _roomPanel

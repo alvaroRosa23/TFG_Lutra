@@ -72,8 +72,16 @@ ScriptableObject con 10 prompts de escritura.
 
 ## Features/SafeZone
 
-### SafeZoneScreen / Controller / View / Item / PlacementPoint / DraggableItem / ShopItemView / InventoryItemView
+### SafeZoneScreen / Controller / View / Room / Item / PlacementPoint / DraggableItem / ShopItemView / InventoryItemView
 Habitación 2D decorable con tienda, inventario y sistema de colocación.
+
+**SafeZoneRoom** (en `Panel_Room`, 2026-10-17) — habitación panorámica deslizable.
+- Jerarquía: `Panel_Room` (ScrollRect horizontal *Clamped* + SafeZoneRoom) → `Viewport` (RectMask2D) → `RoomContent` (3240×1920, tamaño del arte) → `Background_1..3` + `PlacementPoint0..N`
+- `RoomContent` se escala al alto del viewport (`LateUpdate`, también en el editor): el arte no se deforma y los puntos, en píxeles del arte, se quedan sobre el mismo sitio del dibujo. Trozos en X: −1620..−540, −540..540, 540..1620
+- Fondo día/noche: sprites de `Assets/Sprites/Refugio_seguro/Dia|Noche`, noche de `_nightStartHour` (20) a `_nightEndHour` (7); se revisa al activar, al recuperar el foco y cada 30 s
+- `CenterView()` (trozo central al abrir), `SetDragPointer` / `ClearDragPointer` (auto-scroll al arrastrar cerca de los bordes), `IsVisible` / `Reveal` (desliza hasta un punto)
+- Se monta y repara con el menú **Lutra > Zona Segura > Montar habitación panorámica** (`Features/SafeZone/Editor/SafeZoneRoomBuilder.cs`, reejecutable): jerarquía, sprites, barra de inventario sobre la BottomNavBar, botón de inventario, cabecera por encima de `Panel_Shop`
+- Para editar los puntos en la Scene view: desactivar temporalmente el `RectMask2D` del `Viewport`. Nuevos puntos al final de `_placementPoints` con `placementIndex` = su posición en la lista
 
 **SafeZoneController** — gestiona inventario (`List<InventoryItem>`), compra con confirmación, colocación tap-to-place y drag-and-drop, y venta al 50%.
 - Inspector: `_view` (SafeZoneView), `_allItems` (SafeZoneItem[])
@@ -89,8 +97,8 @@ Habitación 2D decorable con tienda, inventario y sistema de colocación.
 
 Campos serializados principales:
 - Tabs: `_roomTabButton`, `_shopTabButton`, `_roomPanel`, `_shopPanel`
-- Habitación: `_placementPoints` (PlacementPoint[]), `_coinsLabel`
-- Inventario: `_rootCanvasOverride` (Canvas), `_inventoryBar`, `_inventoryContainer`, `_inventoryItemPrefab`
+- Habitación: `_room` (SafeZoneRoom), `_placementPoints` (PlacementPoint[]), `_coinsLabel`
+- Inventario: `_rootCanvasOverride` (Canvas), `_inventoryBar`, `_inventoryToggleButton`, `_inventoryToggleLabel`, `_inventoryContainer`, `_inventoryItemPrefab`
 - Tienda: `_shopContainer`, `_shopItemPrefab`, `_shopTabDecorationButton`, `_shopTabAccessoryButton`
 - Diálogo compra: `_confirmBuyDialog`, `_confirmBuyPreview`, `_confirmBuyNameLabel`, `_confirmBuyPriceLabel`, `_confirmBuyCurrentCoinsLabel`, `_confirmBuyAfterCoinsLabel`, `_confirmBuyButton`, `_cancelBuyButton`
 - Diálogo opciones habitación: `_roomItemOptionsDialog`, `_roomItemNameLabel`, `_removeButton` (Guardar), `_sellButton`, `_cancelRoomOptionsButton`
@@ -99,12 +107,15 @@ Campos serializados principales:
 - Feedback: `_notEnoughCoinsPanel`
 
 Métodos públicos clave:
+- `ResetRoom()` — al abrir: centra la habitación y pliega el inventario
 - `ShowConfirmBuyDialog(SafeZoneItem, int currentCoins, int coinsAfter)` — rellena nombre, precio, monedas actuales y monedas restantes
 - `RefreshRoom(inventory, allItems)` — limpia PlacementPoints y coloca prefabs en los ocupados
 - `RefreshInventoryBar(inventory, allItems)` — muestra ítems no colocados; añade `DraggableItem` en runtime
+- Inventario plegable: `_inventoryToggleButton` ("Objetos N" / "Cerrar") abre y cierra la barra; plegada al abrir la pantalla; botón y barra ocultos si no hay nada que colocar o en la tienda
+- `_popupBackdrop` (botón invisible a pantalla completa) se apaga en `Awake` y solo se enciende, bajo el popup, mientras el popup está abierto
 - `RefreshShop(items, ownedIds, coins)` — instancia ShopItemPrefabs y aplica filtro activo
-- `EnterPlacementMode(PlacementType)` — bloquea raycasts del inventario, colorea PlacementPoints
-- `ExitPlacementMode()` — restaura raycasts, quita colores de modo colocación
+- `EnterPlacementMode(PlacementType, bool revealValidPoint = false)` — bloquea raycasts del inventario, esconde barra y botón de inventario (CanvasGroup alfa 0; la barra no se desactiva porque el objeto arrastrado vuelve a ella), colorea PlacementPoints; con `revealValidPoint` (botón "Colocar") desliza hasta el primer punto válido si no se ve ninguno
+- `ExitPlacementMode()` — restaura raycasts e inventario, quita colores de modo colocación
 
 Filtro de tienda: `bool? _activeShopFilter` — `null` = mostrar todos (defecto al abrir), `false` = solo Decoración, `true` = solo Accesorios. Solo se filtra al pulsar un tab de categoría explícitamente.
 
@@ -121,7 +132,7 @@ Eventos: `OnBuyRequested`, `OnBuyConfirmed`, `OnBuyCancelled`, `OnPlaceRequested
 
 **DraggableItem** — IBeginDragHandler/IDragHandler/IEndDragHandler; se añade en runtime a cada InventoryItemView.
 - `Setup(itemId, PlacementType, Canvas)` — usar siempre null check explícito para CanvasGroup (ver pitfall Unity fake-null en CLAUDE.md)
-- Al drag: sube al canvas raíz, alpha 0.75; al soltar: vuelve al padre original, dispara `OnDragCancelled`
+- Al drag: sube al canvas raíz, alpha 0.75; `OnDragMoved(item, screenPos)` en cada movimiento (auto-scroll de la habitación); al soltar: vuelve al padre original, dispara `OnDragCancelled`
 - Todos los handlers tienen null-guard: `if (_rectTransform == null || _canvasGroup == null || _rootCanvas == null) return;`
 
 **InventoryItemView** — implementa `IPointerClickHandler` directamente en el componente (sin `Button` serializado).
