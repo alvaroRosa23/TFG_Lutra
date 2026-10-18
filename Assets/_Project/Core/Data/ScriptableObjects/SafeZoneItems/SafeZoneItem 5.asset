@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 6
   displayName: Cristal de cuarzo
-  previewSprite: {fileID: 0}
+  previewSprite: {fileID: -1277136544140226311, guid: 2dafe2e9c6d596543aed9208b1186534, type: 3}
   prefab: {fileID: 0}
   coinCost: 55
   requiredStreakDays: 0
@@ -22,3 +22,6 @@ MonoBehaviour:
   category: 2
   placementType: 4
   isUnlockedByDefault: 0
+  isRewardOnly: 0
+  interaction: 0
+  interactionLabel: Mirar las estrellas

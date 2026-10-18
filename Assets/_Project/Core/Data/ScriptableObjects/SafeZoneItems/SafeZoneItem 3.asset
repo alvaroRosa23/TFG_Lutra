@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: SafeZoneItem 3
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 4
-  displayName: "Coj\xEDn zen"
-  previewSprite: {fileID: 0}
+  displayName: Buda
+  previewSprite: {fileID: -7363937026425916258, guid: 6e0b1f06ad58840438c529ee664150bf, type: 3}
   prefab: {fileID: 0}
   coinCost: 40
   requiredStreakDays: 0
   unlockDescription: 
-  category: 0
-  placementType: 1
+  category: 2
+  placementType: 4
   isUnlockedByDefault: 0
+  isRewardOnly: 0
+  interaction: 0
+  interactionLabel: Mirar las estrellas

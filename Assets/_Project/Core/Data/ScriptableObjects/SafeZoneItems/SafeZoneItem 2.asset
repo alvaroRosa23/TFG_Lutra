@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 3
   displayName: Cuadro mandala
-  previewSprite: {fileID: 0}
+  previewSprite: {fileID: -6221395232284554071, guid: d8d8e84cdf75558449ba079585b27c51, type: 3}
   prefab: {fileID: 0}
   coinCost: 60
   requiredStreakDays: 0
@@ -22,3 +22,6 @@ MonoBehaviour:
   category: 3
   placementType: 3
   isUnlockedByDefault: 1
+  isRewardOnly: 0
+  interaction: 0
+  interactionLabel: Mirar las estrellas

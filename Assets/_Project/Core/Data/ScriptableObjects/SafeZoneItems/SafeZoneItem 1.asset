@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 2
   displayName: "L\xE1mpara de sal"
-  previewSprite: {fileID: 0}
+  previewSprite: {fileID: -3503332872277848065, guid: 140e01856fb92de4d809591994e89d3a, type: 3}
   prefab: {fileID: 0}
   coinCost: 80
   requiredStreakDays: 0
@@ -22,3 +22,6 @@ MonoBehaviour:
   category: 0
   placementType: 1
   isUnlockedByDefault: 1
+  isRewardOnly: 0
+  interaction: 0
+  interactionLabel: Mirar las estrellas

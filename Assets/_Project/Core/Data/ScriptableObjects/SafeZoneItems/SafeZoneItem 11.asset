@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 574910fe4bf4ab0418c0f933ee2934ec, type: 3}
+  m_Name: SafeZoneItem 11
+  m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
+  itemId: 7
+  displayName: "Jarr\xF3n"
+  previewSprite: {fileID: 7595449698281866895, guid: 943e9efd41568f140845a3e17f808024, type: 3}
+  prefab: {fileID: 0}
+  coinCost: 50
+  requiredStreakDays: 0
+  unlockDescription: 
+  category: 1
+  placementType: 2
+  isUnlockedByDefault: 0
+  isRewardOnly: 0
+  interaction: 1
+  interactionLabel: Mirar las estrellas

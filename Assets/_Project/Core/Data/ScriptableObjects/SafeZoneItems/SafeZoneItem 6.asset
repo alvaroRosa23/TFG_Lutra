@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: SafeZoneItem 6
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 7
-  displayName: Telescopio
-  previewSprite: {fileID: 0}
+  displayName: Altavoz
+  previewSprite: {fileID: -2924986429396325975, guid: cbba7cb533ee4e24aa4c63d2c9e15e8d, type: 3}
   prefab: {fileID: 0}
   coinCost: 50
   requiredStreakDays: 0

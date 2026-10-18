@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: SafeZoneItem
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 1
-  displayName: Planta suculenta
-  previewSprite: {fileID: 0}
+  displayName: Bonsai
+  previewSprite: {fileID: -1495734539988488806, guid: b700367efd201b24c8e70aa470c35cf5, type: 3}
   prefab: {fileID: 0}
   coinCost: 50
   requiredStreakDays: 0
@@ -22,3 +22,6 @@ MonoBehaviour:
   category: 1
   placementType: 2
   isUnlockedByDefault: 1
+  isRewardOnly: 0
+  interaction: 0
+  interactionLabel: Mirar las estrellas

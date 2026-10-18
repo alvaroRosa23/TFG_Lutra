@@ -13,12 +13,15 @@ MonoBehaviour:
   m_Name: SafeZoneItem 4
   m_EditorClassIdentifier: LutraCore::Lutra.Features.SafeZone.SafeZoneItem
   itemId: 5
-  displayName: "M\xF3vil de estrellas"
-  previewSprite: {fileID: 0}
+  displayName: Tamagochi
+  previewSprite: {fileID: 7011804751953431432, guid: 6831b6fcd5b472b4cbeb7523665efbe8, type: 3}
   prefab: {fileID: 0}
   coinCost: 70
   requiredStreakDays: 0
   unlockDescription: 
-  category: 3
-  placementType: 3
+  category: 0
+  placementType: 1
   isUnlockedByDefault: 0
+  isRewardOnly: 0
+  interaction: 0
+  interactionLabel: Mirar las estrellas
