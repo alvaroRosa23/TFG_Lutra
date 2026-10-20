@@ -54,9 +54,9 @@ namespace Lutra.Features.EmotionCheck
 
         [Header("Tag Colors")]
         [SerializeField] private Color _emotionTagNormalColor   = new Color(0.88f, 0.88f, 0.88f, 1f);
-        [SerializeField] private Color _emotionTagSelectedColor  = new Color(0.40f, 0.60f, 1.00f, 1f);
+        [SerializeField] private Color _emotionTagSelectedColor  = new Color(0.2705882f, 0.4627451f, 0.3882353f, 1f);
         [SerializeField] private Color _motiveTagNormalColor    = new Color(0.88f, 0.88f, 0.88f, 1f);
-        [SerializeField] private Color _motiveTagSelectedColor   = new Color(0.40f, 0.80f, 0.60f, 1f);
+        [SerializeField] private Color _motiveTagSelectedColor   = new Color(0.2705882f, 0.4627451f, 0.3882353f, 1f);
 
         [SerializeField] private EmotionCheckController _controller;
 

@@ -1,2 +1,29 @@
 fileFormatVersion: 2
 guid: de8c8616cfbe5c94c8c180a9e9b0338f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - _titleLabel: {instanceID: 0}
+  - _dateLabel: {instanceID: 0}
+  - _backButton: {instanceID: 0}
+  - _emotionTagsContainer: {instanceID: 0}
+  - _emotionTagPrefab: {fileID: 3425368492212010396, guid: 41921af39a3bab94d989a606203ebff4, type: 3}
+  - _seeMoreEmotionsButton: {instanceID: 0}
+  - _extraEmotionsPanel: {instanceID: 0}
+  - _motiveTagsContainer: {instanceID: 0}
+  - _motiveTagPrefab: {instanceID: 0}
+  - _otherMotiveButton: {instanceID: 0}
+  - _otherMotiveInputPanel: {instanceID: 0}
+  - _otherMotiveInput: {instanceID: 0}
+  - _addPhotoButton: {instanceID: 0}
+  - _photoPreview: {instanceID: 0}
+  - _photoPreviewPanel: {instanceID: 0}
+  - _confirmButton: {instanceID: 0}
+  - _errorLabel: {instanceID: 0}
+  - _controller: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
